@@ -1,0 +1,1615 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>影片文字編輯器 - 完整功能版</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 30px;
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 30px;
+        }
+
+        .left-panel {
+            min-width: 0;
+        }
+
+        .right-panel {
+            position: sticky;
+            top: 20px;
+            height: fit-content;
+        }
+
+        .upload-section {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 30px;
+            background: #f8f9ff;
+            transition: all 0.3s;
+            grid-column: 1 / -1;
+        }
+
+        .upload-section:hover {
+            border-color: #764ba2;
+            background: #f0f2ff;
+        }
+
+        .upload-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 40px;
+            border: none;
+            border-radius: 50px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: transform 0.3s;
+            display: inline-block;
+            margin: 5px;
+        }
+
+        .upload-btn:hover {
+            transform: scale(1.05);
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .video-container {
+            position: relative;
+            margin-bottom: 20px;
+            display: none;
+            background: #000;
+            border-radius: 15px;
+            overflow: hidden;
+            width: 100%;
+        }
+
+        #videoPlayer {
+            width: 100%;
+            height: auto;
+            display: block;
+            object-fit: contain;
+        }
+
+        .canvas-container {
+            position: relative;
+            display: none;
+            width: 100%;
+        }
+
+        #canvas {
+            width: 100%;
+            height: auto;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            display: block;
+            cursor: move;
+        }
+
+        .preview-header {
+            background: #f8f9ff;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .preview-header h3 {
+            color: #667eea;
+            margin: 0;
+        }
+
+        .controls {
+            background: #f8f9ff;
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+        }
+
+        .control-group {
+            margin-bottom: 20px;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+        }
+
+        .control-group input[type="text"],
+        .control-group textarea,
+        .control-group input[type="number"],
+        .control-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+            font-family: inherit;
+        }
+
+        .control-group textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .control-group input:focus,
+        .control-group textarea:focus,
+        .control-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .color-size-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background: #c0392b;
+        }
+
+        .btn-success {
+            background: #27ae60;
+            color: white;
+        }
+
+        .btn-success:hover:not(:disabled) {
+            background: #229954;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        input[type="color"] {
+            width: 100%;
+            height: 50px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+
+        .color-picker-group {
+            background: #fff;
+            padding: 15px;
+            border-radius: 10px;
+            border: 2px solid #ddd;
+        }
+
+        .stroke-picker-group {
+            background: #fff;
+            padding: 15px;
+            border-radius: 10px;
+            border: 2px solid #ddd;
+            margin-top: 10px;
+        }
+
+        .color-item {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            align-items: center;
+        }
+
+        .stroke-item {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            align-items: center;
+            padding: 10px;
+            background: #f8f9ff;
+            border-radius: 8px;
+        }
+
+        .stroke-item input[type="color"] {
+            width: 60px;
+            height: 40px;
+        }
+
+        .stroke-item input[type="number"] {
+            width: 80px;
+            padding: 5px;
+        }
+
+        .stroke-item label {
+            margin: 0;
+            font-size: 0.9em;
+        }
+
+        .color-item input[type="color"] {
+            width: 60px;
+            height: 40px;
+        }
+
+        .color-item input[type="range"] {
+            flex: 1;
+        }
+
+        .color-item button,
+        .stroke-item button {
+            padding: 5px 15px;
+            background: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .add-color-btn {
+            width: 100%;
+            padding: 10px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        .add-color-btn:hover {
+            background: #2980b9;
+        }
+
+        .uploaded-fonts {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f0f0f0;
+            border-radius: 5px;
+            max-height: 100px;
+            overflow-y: auto;
+        }
+
+        .font-tag {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            margin: 5px;
+            font-size: 0.85em;
+        }
+
+        .text-list {
+            background: #fff;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .text-item {
+            background: #f8f9ff;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-left: 4px solid #667eea;
+            transition: all 0.3s;
+        }
+
+        .text-item:hover {
+            background: #f0f2ff;
+            transform: translateX(5px);
+        }
+
+        .text-item.selected {
+            background: #e8f4f8;
+            border-left-color: #764ba2;
+        }
+
+        .text-item-content {
+            flex: 1;
+            font-size: 0.9em;
+            color: #333;
+        }
+
+        .text-item-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .text-item-btn {
+            padding: 5px 12px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.85em;
+            transition: all 0.3s;
+        }
+
+        .btn-edit {
+            background: #3498db;
+            color: white;
+        }
+
+        .btn-edit:hover {
+            background: #2980b9;
+        }
+
+        .btn-delete {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .btn-delete:hover {
+            background: #c0392b;
+        }
+
+        .mode-indicator {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+
+        .mode-add {
+            background: #27ae60;
+            color: white;
+        }
+
+        .mode-edit {
+            background: #f39c12;
+            color: white;
+        }
+
+        .tab-navigation {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 20px;
+            background: #fff;
+            padding: 5px;
+            border-radius: 10px;
+            border: 2px solid #ddd;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 12px 10px;
+            border: none;
+            background: transparent;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: 600;
+            color: #666;
+            transition: all 0.3s;
+        }
+
+        .tab-btn:hover {
+            background: #f8f9ff;
+        }
+
+        .tab-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .action-buttons {
+            position: sticky;
+            bottom: 0;
+            background: #f8f9ff;
+            padding: 15px 0;
+            margin-top: 20px;
+            border-top: 2px solid #ddd;
+        }
+
+        .resize-handle {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: #667eea;
+            border: 2px solid white;
+            border-radius: 50%;
+            cursor: nwse-resize;
+            display: none;
+            z-index: 10;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+
+        .text-bbox {
+            position: absolute;
+            border: 2px dashed #667eea;
+            pointer-events: none;
+            display: none;
+            box-sizing: border-box;
+        }
+
+        .progress-bar {
+            display: none;
+            width: 100%;
+            height: 30px;
+            background: #f0f0f0;
+            border-radius: 15px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+
+        .media-info {
+            background: #f0f2ff;
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 10px;
+            font-size: 0.9em;
+            color: #555;
+        }
+
+        @media (max-width: 1024px) {
+            .content {
+                grid-template-columns: 1fr;
+            }
+            
+            .right-panel {
+                position: relative;
+                top: 0;
+            }
+            
+            .upload-section {
+                grid-column: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎬 影片文字編輯器</h1>
+            <p>支援影片/GIF + 保留原音訊 + 多色漸層文字 + 多層邊框 + 自訂字型</p>
+        </div>
+
+        <div class="content">
+            <div class="upload-section">
+                <h2 style="margin-bottom: 15px; color: #667eea;">上傳檔案</h2>
+                <p style="margin-bottom: 20px; color: #666;">支援 MP4, WebM, MOV, GIF 等格式 / TTF, OTF 字型檔</p>
+                <label for="videoInput" class="upload-btn">📹 選擇影片/GIF</label>
+                <label for="fontInput" class="upload-btn">📤 上傳字型</label>
+                <input type="file" id="videoInput" accept="video/*,image/gif">
+                <input type="file" id="fontInput" accept=".ttf,.otf,.woff,.woff2" multiple>
+                <div class="uploaded-fonts" id="uploadedFonts" style="display:none;"></div>
+                <div class="media-info" id="mediaInfo" style="display:none;"></div>
+            </div>
+
+            <div class="left-panel">
+                <div class="controls" id="controls" style="display: none;">
+                    <h3 style="margin-bottom: 20px; color: #667eea;">文字設定</h3>
+                    
+                    <div id="modeIndicator" class="mode-indicator mode-add">➕ 新增模式</div>
+
+                    <div class="tab-navigation">
+                        <button class="tab-btn active" data-tab="basic">📝 基本</button>
+                        <button class="tab-btn" data-tab="style">🎨 樣式</button>
+                        <button class="tab-btn" data-tab="list">📋 列表</button>
+                    </div>
+
+                    <div id="tab-basic" class="tab-content active">
+                        <div class="control-group">
+                            <label>文字內容(支援多行)</label>
+                            <textarea id="textInput" placeholder="輸入要顯示的文字&#10;可以換行輸入多行文字"></textarea>
+                        </div>
+
+                        <div class="color-size-group">
+                            <div class="control-group">
+                                <label>文字大小</label>
+                                <input type="number" id="fontSize" value="48" min="12" max="200">
+                            </div>
+                            <div class="control-group">
+                                <label>行距</label>
+                                <input type="number" id="lineHeight" value="1.2" min="0.5" max="3" step="0.1">
+                            </div>
+                        </div>
+
+                        <div class="control-group">
+                            <label>字體</label>
+                            <select id="fontFamily">
+                                <option value="Arial">Arial</option>
+                                <option value="微軟正黑體">微軟正黑體</option>
+                                <option value="Impact">Impact</option>
+                                <option value="Comic Sans MS">Comic Sans MS</option>
+                                <option value="Times New Roman">Times New Roman</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div id="tab-style" class="tab-content">
+                        <div class="control-group">
+                            <label>文字顏色(可添加多個漸層色)</label>
+                            <div class="color-picker-group" id="colorPickerGroup">
+                                <div class="color-item">
+                                    <input type="color" value="#ffffff" class="text-color">
+                                    <label style="margin:0; font-weight:normal;">位置: <span class="position-value">0%</span></label>
+                                    <input type="range" min="0" max="100" value="0" class="color-position">
+                                </div>
+                            </div>
+                            <button class="add-color-btn" id="addColorBtn">➕ 添加顏色</button>
+                        </div>
+
+                        <div class="control-group">
+                            <label>文字邊框(可添加多層邊框)</label>
+                            <div class="stroke-picker-group" id="strokePickerGroup">
+                                <div class="stroke-item">
+                                    <input type="color" value="#000000" class="stroke-color">
+                                    <label>粗細:</label>
+                                    <input type="number" value="3" min="0" max="50" class="stroke-width">
+                                    <label>px</label>
+                                </div>
+                            </div>
+                            <button class="add-color-btn" id="addStrokeBtn">➕ 添加邊框層</button>
+                        </div>
+                    </div>
+
+                    <div id="tab-list" class="tab-content">
+                        <div id="textList" class="text-list" style="display: none;">
+                            <h4 style="margin-bottom: 10px; color: #555;">已添加的文字</h4>
+                            <div id="textListItems"></div>
+                        </div>
+                        <div id="emptyListMessage" style="text-align: center; padding: 40px; color: #999;">
+                            <p style="font-size: 3em; margin-bottom: 10px;">📝</p>
+                            <p>尚未添加任何文字</p>
+                            <p style="font-size: 0.9em; margin-top: 5px;">請到「基本」頁面添加文字</p>
+                        </div>
+                    </div>
+
+                    <div class="action-buttons">
+                        <div class="btn-group">
+                            <button class="btn btn-primary" id="addOrUpdateBtn">➕ 添加文字</button>
+                            <button class="btn btn-success" id="exportBtn">💾 下載影片</button>
+                            <button class="btn btn-danger" id="clearBtn">🗑️ 清除全部</button>
+                        </div>
+                        <div class="progress-bar" id="progressBar">
+                            <div class="progress-fill" id="progressFill">0%</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="right-panel">
+                <div class="preview-header">
+                    <h3>🎬 即時預覽</h3>
+                </div>
+                
+                <div class="video-container" id="videoContainer">
+                    <video id="videoPlayer" controls></video>
+                </div>
+
+                <div class="canvas-container" id="canvasContainer">
+                    <canvas id="canvas"></canvas>
+                    <div class="text-bbox" id="textBbox"></div>
+                    <div class="resize-handle" id="resizeHandle"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全域變數
+        const elements = {
+            videoInput: document.getElementById('videoInput'),
+            fontInput: document.getElementById('fontInput'),
+            videoPlayer: document.getElementById('videoPlayer'),
+            videoContainer: document.getElementById('videoContainer'),
+            controls: document.getElementById('controls'),
+            canvas: document.getElementById('canvas'),
+            canvasContainer: document.getElementById('canvasContainer'),
+            uploadedFontsDiv: document.getElementById('uploadedFonts'),
+            resizeHandle: document.getElementById('resizeHandle'),
+            textBbox: document.getElementById('textBbox'),
+            mediaInfo: document.getElementById('mediaInfo'),
+            progressBar: document.getElementById('progressBar'),
+            progressFill: document.getElementById('progressFill'),
+            textInput: document.getElementById('textInput'),
+            fontSize: document.getElementById('fontSize'),
+            fontFamily: document.getElementById('fontFamily'),
+            lineHeight: document.getElementById('lineHeight'),
+            addOrUpdateBtn: document.getElementById('addOrUpdateBtn'),
+            exportBtn: document.getElementById('exportBtn'),
+            clearBtn: document.getElementById('clearBtn'),
+            addColorBtn: document.getElementById('addColorBtn'),
+            addStrokeBtn: document.getElementById('addStrokeBtn'),
+            colorPickerGroup: document.getElementById('colorPickerGroup'),
+            strokePickerGroup: document.getElementById('strokePickerGroup'),
+            textList: document.getElementById('textList'),
+            textListItems: document.getElementById('textListItems'),
+            emptyListMessage: document.getElementById('emptyListMessage'),
+            modeIndicator: document.getElementById('modeIndicator')
+        };
+
+        const ctx = elements.canvas.getContext('2d');
+        
+        let state = {
+            texts: [],
+            selectedText: null,
+            videoFile: null,
+            videoUrl: null,
+            uploadedFonts: [],
+            editingIndex: -1,
+            isResizing: false,
+            resizeStartSize: 0,
+            resizeStartY: 0,
+            previewText: null,
+            isGif: false,
+            debounceTimer: null
+        };
+
+        // 標籤切換功能
+        function initTabs() {
+            const tabBtns = document.querySelectorAll('.tab-btn');
+            tabBtns.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const tabName = this.getAttribute('data-tab');
+                    switchTab(tabName);
+                });
+            });
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            const targetTab = document.getElementById('tab-' + tabName);
+            const targetBtn = document.querySelector(`[data-tab="${tabName}"]`);
+            
+            if (targetTab) targetTab.classList.add('active');
+            if (targetBtn) targetBtn.classList.add('active');
+        }
+
+        // Debounce 函數
+        function debounce(func, delay) {
+            return function(...args) {
+                clearTimeout(state.debounceTimer);
+                state.debounceTimer = setTimeout(() => func.apply(this, args), delay);
+            };
+        }
+
+        // 即時預覽更新
+        function updatePreview() {
+            const text = elements.textInput.value;
+            if (!text || !elements.canvas.width) {
+                state.previewText = null;
+                drawFrame();
+                return;
+            }
+
+            const lines = text.split('\n');
+            
+            state.previewText = {
+                lines: lines,
+                size: parseInt(elements.fontSize.value) || 48,
+                font: elements.fontFamily.value,
+                lineHeight: parseFloat(elements.lineHeight.value) || 1.2,
+                x: state.editingIndex >= 0 && state.texts[state.editingIndex] ? 
+                   state.texts[state.editingIndex].x : elements.canvas.width / 2,
+                y: state.editingIndex >= 0 && state.texts[state.editingIndex] ? 
+                   state.texts[state.editingIndex].y : elements.canvas.height / 2,
+                colors: [],
+                strokes: [],
+                isPreview: true
+            };
+
+            // 收集顏色設定
+            const colorItems = elements.colorPickerGroup.querySelectorAll('.color-item');
+            colorItems.forEach(item => {
+                const colorInput = item.querySelector('.text-color');
+                const positionInput = item.querySelector('.color-position');
+                if (colorInput && positionInput) {
+                    state.previewText.colors.push({
+                        color: colorInput.value,
+                        position: parseFloat(positionInput.value) / 100
+                    });
+                }
+            });
+
+            // 收集邊框設定
+            const strokeItems = elements.strokePickerGroup.querySelectorAll('.stroke-item');
+            strokeItems.forEach(item => {
+                const colorInput = item.querySelector('.stroke-color');
+                const widthInput = item.querySelector('.stroke-width');
+                if (colorInput && widthInput) {
+                    const width = parseInt(widthInput.value);
+                    if (width > 0) {
+                        state.previewText.strokes.push({
+                            color: colorInput.value,
+                            width: width
+                        });
+                    }
+                }
+            });
+
+            state.previewText.strokes.sort((a, b) => b.width - a.width);
+            drawFrame();
+        }
+
+        const debouncedUpdatePreview = debounce(updatePreview, 150);
+
+        // 設置即時預覽監聽
+        function setupLivePreview() {
+            elements.textInput.addEventListener('input', debouncedUpdatePreview);
+            elements.fontSize.addEventListener('input', debouncedUpdatePreview);
+            elements.fontFamily.addEventListener('change', debouncedUpdatePreview);
+            elements.lineHeight.addEventListener('input', debouncedUpdatePreview);
+            
+            elements.colorPickerGroup.addEventListener('input', debouncedUpdatePreview);
+            elements.colorPickerGroup.addEventListener('change', debouncedUpdatePreview);
+            elements.strokePickerGroup.addEventListener('input', debouncedUpdatePreview);
+            elements.strokePickerGroup.addEventListener('change', debouncedUpdatePreview);
+        }
+
+        // 影片上傳處理
+        elements.videoInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            // 清理舊的 URL
+            if (state.videoUrl) {
+                URL.revokeObjectURL(state.videoUrl);
+            }
+
+            state.videoFile = file;
+            state.isGif = file.type === 'image/gif';
+            state.videoUrl = URL.createObjectURL(file);
+            elements.videoPlayer.src = state.videoUrl;
+            elements.videoContainer.style.display = 'block';
+            elements.controls.style.display = 'block';
+
+            const fileSize = (file.size / 1024 / 1024).toFixed(2);
+            const fileType = state.isGif ? 'GIF' : file.type.split('/')[1].toUpperCase();
+            
+            elements.videoPlayer.addEventListener('loadedmetadata', function() {
+                const aspectRatio = elements.videoPlayer.videoWidth / elements.videoPlayer.videoHeight;
+                const maxWidth = 800;
+                
+                elements.canvas.width = Math.min(maxWidth, elements.videoPlayer.videoWidth);
+                elements.canvas.height = elements.canvas.width / aspectRatio;
+                
+                // 顯示媒體資訊
+                const hasAudio = elements.videoPlayer.mozHasAudio || 
+                                elements.videoPlayer.webkitAudioDecodedByteCount > 0 || 
+                                (elements.videoPlayer.audioTracks && elements.videoPlayer.audioTracks.length > 0);
+                
+                elements.mediaInfo.style.display = 'block';
+                elements.mediaInfo.innerHTML = `
+                    📊 檔案資訊: ${fileType} | ${elements.videoPlayer.videoWidth}x${elements.videoPlayer.videoHeight} | ${fileSize} MB
+                    ${!state.isGif ? ` | 時長: ${elements.videoPlayer.duration.toFixed(1)}秒` : ''}
+                    ${hasAudio ? ' | 🔊 有音訊' : ' | 🔇 無音訊'}
+                `;
+                
+                elements.videoPlayer.currentTime = 0.1;
+                setTimeout(() => {
+                    elements.canvasContainer.style.display = 'block';
+                    drawFrame();
+                    setupLivePreview();
+                }, 100);
+            }, { once: true });
+        });
+
+        // 字型上傳處理
+        elements.fontInput.addEventListener('change', async function(e) {
+            const files = e.target.files;
+            
+            for (let file of files) {
+                const fontName = file.name.replace(/\.(ttf|otf|woff|woff2)$/i, '');
+                const fontUrl = URL.createObjectURL(file);
+                
+                try {
+                    const fontFace = new FontFace(fontName, `url(${fontUrl})`);
+                    await fontFace.load();
+                    document.fonts.add(fontFace);
+                    
+                    state.uploadedFonts.push(fontName);
+                    
+                    const option = document.createElement('option');
+                    option.value = fontName;
+                    option.textContent = `${fontName} (自訂)`;
+                    elements.fontFamily.appendChild(option);
+                    
+                    elements.uploadedFontsDiv.style.display = 'block';
+                    const tag = document.createElement('span');
+                    tag.className = 'font-tag';
+                    tag.textContent = fontName;
+                    elements.uploadedFontsDiv.appendChild(tag);
+                    
+                } catch (error) {
+                    console.error('字型載入失敗:', error);
+                    alert(`字型 "${fontName}" 載入失敗: ${error.message}`);
+                }
+            }
+        });
+
+        // 添加顏色選擇器
+        elements.addColorBtn.addEventListener('click', function() {
+            const colorItem = document.createElement('div');
+            colorItem.className = 'color-item';
+            
+            const randomColor = '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
+            const itemCount = elements.colorPickerGroup.children.length;
+            const position = Math.min(100, itemCount * 25);
+            
+            colorItem.innerHTML = `
+                <input type="color" value="${randomColor}" class="text-color">
+                <label style="margin:0; font-weight:normal;">位置: <span class="position-value">${position}%</span></label>
+                <input type="range" min="0" max="100" value="${position}" class="color-position">
+                <button type="button" class="remove-color-btn">✕</button>
+            `;
+            
+            elements.colorPickerGroup.appendChild(colorItem);
+            
+            const slider = colorItem.querySelector('.color-position');
+            const positionLabel = colorItem.querySelector('.position-value');
+            slider.addEventListener('input', function() {
+                positionLabel.textContent = this.value + '%';
+            });
+            
+            const removeBtn = colorItem.querySelector('.remove-color-btn');
+            removeBtn.addEventListener('click', function() {
+                colorItem.remove();
+                debouncedUpdatePreview();
+            });
+            
+            debouncedUpdatePreview();
+        });
+
+        // 添加邊框層
+        elements.addStrokeBtn.addEventListener('click', function() {
+            const strokeItem = document.createElement('div');
+            strokeItem.className = 'stroke-item';
+            
+            const randomColor = '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
+            const currentWidth = elements.strokePickerGroup.children.length > 0 ? 
+                parseInt(elements.strokePickerGroup.children[elements.strokePickerGroup.children.length - 1].querySelector('.stroke-width').value) + 3 : 6;
+            
+            strokeItem.innerHTML = `
+                <input type="color" value="${randomColor}" class="stroke-color">
+                <label>粗細:</label>
+                <input type="number" value="${currentWidth}" min="0" max="50" class="stroke-width">
+                <label>px</label>
+                <button type="button" class="remove-stroke-btn">✕</button>
+            `;
+            
+            elements.strokePickerGroup.appendChild(strokeItem);
+            
+            const removeBtn = strokeItem.querySelector('.remove-stroke-btn');
+            removeBtn.addEventListener('click', function() {
+                strokeItem.remove();
+                debouncedUpdatePreview();
+            });
+            
+            debouncedUpdatePreview();
+        });
+
+        // 添加或更新文字
+        elements.addOrUpdateBtn.addEventListener('click', function() {
+            const text = elements.textInput.value.trim();
+            const size = parseInt(elements.fontSize.value);
+            const font = elements.fontFamily.value;
+            const lineHeight = parseFloat(elements.lineHeight.value);
+
+            if (!text) {
+                alert('請輸入文字內容!');
+                return;
+            }
+
+            const lines = text.split('\n');
+            
+            const textObj = {
+                lines: lines,
+                size: size,
+                font: font,
+                lineHeight: lineHeight,
+                x: state.editingIndex >= 0 ? state.texts[state.editingIndex].x : 
+                   (state.previewText ? state.previewText.x : elements.canvas.width / 2),
+                y: state.editingIndex >= 0 ? state.texts[state.editingIndex].y : 
+                   (state.previewText ? state.previewText.y : elements.canvas.height / 2),
+                colors: [],
+                strokes: []
+            };
+
+            // 收集顏色
+            const colorItems = elements.colorPickerGroup.querySelectorAll('.color-item');
+            colorItems.forEach(item => {
+                textObj.colors.push({
+                    color: item.querySelector('.text-color').value,
+                    position: parseFloat(item.querySelector('.color-position').value) / 100
+                });
+            });
+
+            // 收集邊框
+            const strokeItems = elements.strokePickerGroup.querySelectorAll('.stroke-item');
+            strokeItems.forEach(item => {
+                const width = parseInt(item.querySelector('.stroke-width').value);
+                if (width > 0) {
+                    textObj.strokes.push({
+                        color: item.querySelector('.stroke-color').value,
+                        width: width
+                    });
+                }
+            });
+
+            textObj.strokes.sort((a, b) => b.width - a.width);
+
+            if (state.editingIndex >= 0) {
+                state.texts[state.editingIndex] = textObj;
+                exitEditMode();
+            } else {
+                state.texts.push(textObj);
+            }
+
+            elements.textInput.value = '';
+            state.previewText = null;
+            updateTextList();
+            drawFrame();
+        });
+
+        // 編輯文字
+        function editText(index) {
+            state.editingIndex = index;
+            const textObj = state.texts[index];
+            
+            switchTab('basic');
+            
+            elements.textInput.value = textObj.lines.join('\n');
+            elements.fontSize.value = textObj.size;
+            elements.fontFamily.value = textObj.font;
+            elements.lineHeight.value = textObj.lineHeight;
+            
+            // 重建顏色選擇器
+            elements.colorPickerGroup.innerHTML = '';
+            textObj.colors.forEach((colorData, i) => {
+                const colorItem = document.createElement('div');
+                colorItem.className = 'color-item';
+                const position = Math.round(colorData.position * 100);
+                
+                colorItem.innerHTML = `
+                    <input type="color" value="${colorData.color}" class="text-color">
+                    <label style="margin:0; font-weight:normal;">位置: <span class="position-value">${position}%</span></label>
+                    <input type="range" min="0" max="100" value="${position}" class="color-position">
+                    ${i > 0 ? '<button type="button" class="remove-color-btn">✕</button>' : ''}
+                `;
+                
+                elements.colorPickerGroup.appendChild(colorItem);
+                
+                const slider = colorItem.querySelector('.color-position');
+                const positionLabel = colorItem.querySelector('.position-value');
+                slider.addEventListener('input', function() {
+                    positionLabel.textContent = this.value + '%';
+                });
+                
+                if (i > 0) {
+                    const removeBtn = colorItem.querySelector('.remove-color-btn');
+                    removeBtn.addEventListener('click', function() {
+                        colorItem.remove();
+                        debouncedUpdatePreview();
+                    });
+                }
+            });
+            
+            // 重建邊框選擇器
+            elements.strokePickerGroup.innerHTML = '';
+            if (textObj.strokes && textObj.strokes.length > 0) {
+                textObj.strokes.forEach((strokeData, i) => {
+                    const strokeItem = document.createElement('div');
+                    strokeItem.className = 'stroke-item';
+                    
+                    strokeItem.innerHTML = `
+                        <input type="color" value="${strokeData.color}" class="stroke-color">
+                        <label>粗細:</label>
+                        <input type="number" value="${strokeData.width}" min="0" max="50" class="stroke-width">
+                        <label>px</label>
+                        ${i > 0 ? '<button type="button" class="remove-stroke-btn">✕</button>' : ''}
+                    `;
+                    
+                    elements.strokePickerGroup.appendChild(strokeItem);
+                    
+                    if (i > 0) {
+                        const removeBtn = strokeItem.querySelector('.remove-stroke-btn');
+                        removeBtn.addEventListener('click', function() {
+                            strokeItem.remove();
+                            debouncedUpdatePreview();
+                        });
+                    }
+                });
+            } else {
+                const strokeItem = document.createElement('div');
+                strokeItem.className = 'stroke-item';
+                strokeItem.innerHTML = `
+                    <input type="color" value="#000000" class="stroke-color">
+                    <label>粗細:</label>
+                    <input type="number" value="3" min="0" max="50" class="stroke-width">
+                    <label>px</label>
+                `;
+                elements.strokePickerGroup.appendChild(strokeItem);
+            }
+            
+            updateModeIndicator(true);
+            updateTextList();
+            elements.textInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        // 刪除文字
+        function deleteText(index) {
+            if (confirm('確定要刪除這個文字嗎?')) {
+                state.texts.splice(index, 1);
+                if (state.editingIndex === index) {
+                    exitEditMode();
+                } else if (state.editingIndex > index) {
+                    state.editingIndex--;
+                }
+                updateTextList();
+                drawFrame();
+            }
+        }
+
+        // 退出編輯模式
+        function exitEditMode() {
+            state.editingIndex = -1;
+            elements.textInput.value = '';
+            state.previewText = null;
+            updateModeIndicator(false);
+            updateTextList();
+            drawFrame();
+        }
+
+        // 更新模式指示器
+        function updateModeIndicator(isEditMode) {
+            if (isEditMode) {
+                elements.modeIndicator.className = 'mode-indicator mode-edit';
+                elements.modeIndicator.innerHTML = '✏️ 編輯模式 <button onclick="exitEditMode()" style="margin-left:10px; background:white; color:#f39c12; border:none; padding:3px 10px; border-radius:10px; cursor:pointer; font-weight:bold;">取消</button>';
+                elements.addOrUpdateBtn.textContent = '💾 更新文字';
+            } else {
+                elements.modeIndicator.className = 'mode-indicator mode-add';
+                elements.modeIndicator.textContent = '➕ 新增模式';
+                elements.addOrUpdateBtn.textContent = '➕ 添加文字';
+            }
+        }
+
+        // 更新文字列表
+        function updateTextList() {
+            if (state.texts.length === 0) {
+                elements.textList.style.display = 'none';
+                elements.emptyListMessage.style.display = 'block';
+                return;
+            }
+            
+            elements.textList.style.display = 'block';
+            elements.emptyListMessage.style.display = 'none';
+            elements.textListItems.innerHTML = '';
+            
+            state.texts.forEach((textObj, index) => {
+                const item = document.createElement('div');
+                item.className = 'text-item' + (index === state.editingIndex ? ' selected' : '');
+                
+                const preview = textObj.lines.join(' ').substring(0, 30) + 
+                               (textObj.lines.join(' ').length > 30 ? '...' : '');
+                
+                item.innerHTML = `
+                    <div class="text-item-content">
+                        <strong>${index + 1}.</strong> ${preview}<br>
+                        <small style="color: #666;">字型: ${textObj.font} | 大小: ${textObj.size}px | 顏色: ${textObj.colors.length}色 | 邊框: ${textObj.strokes.length}層</small>
+                    </div>
+                    <div class="text-item-actions">
+                        <button class="text-item-btn btn-edit" data-index="${index}">✏️ 編輯</button>
+                        <button class="text-item-btn btn-delete" data-index="${index}">🗑️</button>
+                    </div>
+                `;
+                
+                elements.textListItems.appendChild(item);
+                
+                // 綁定編輯按鈕
+                item.querySelector('.btn-edit').addEventListener('click', function() {
+                    editText(parseInt(this.getAttribute('data-index')));
+                });
+                
+                // 綁定刪除按鈕
+                item.querySelector('.btn-delete').addEventListener('click', function() {
+                    deleteText(parseInt(this.getAttribute('data-index')));
+                });
+            });
+        }
+
+        // 繪製幀
+        function drawFrame() {
+            if (!elements.videoPlayer.videoWidth || !elements.videoPlayer.videoHeight) {
+                return;
+            }
+            
+            ctx.clearRect(0, 0, elements.canvas.width, elements.canvas.height);
+            
+            const videoRatio = elements.videoPlayer.videoWidth / elements.videoPlayer.videoHeight;
+            const canvasRatio = elements.canvas.width / elements.canvas.height;
+            
+            let sx, sy, sw, sh;
+            
+            if (videoRatio > canvasRatio) {
+                sh = elements.videoPlayer.videoHeight;
+                sw = sh * canvasRatio;
+                sx = (elements.videoPlayer.videoWidth - sw) / 2;
+                sy = 0;
+            } else {
+                sw = elements.videoPlayer.videoWidth;
+                sh = sw / canvasRatio;
+                sx = 0;
+                sy = (elements.videoPlayer.videoHeight - sh) / 2;
+            }
+            
+            ctx.drawImage(elements.videoPlayer, sx, sy, sw, sh, 0, 0, elements.canvas.width, elements.canvas.height);
+
+            // 繪製已保存的文字
+            state.texts.forEach(textObj => {
+                drawText(textObj);
+            });
+
+            // 繪製預覽文字（半透明）
+            if (state.previewText && state.editingIndex === -1) {
+                ctx.globalAlpha = 0.7;
+                drawText(state.previewText);
+                ctx.globalAlpha = 1.0;
+            }
+
+            updateResizeHandle();
+        }
+
+        // 繪製文字
+        function drawText(textObj) {
+            ctx.font = `${textObj.size}px ${textObj.font}`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            const lineSpacing = textObj.size * textObj.lineHeight;
+            const totalHeight = lineSpacing * textObj.lines.length;
+            const startY = textObj.y - (totalHeight / 2) + (lineSpacing / 2);
+
+            textObj.lines.forEach((line, index) => {
+                const y = startY + (index * lineSpacing);
+                
+                const metrics = ctx.measureText(line);
+                const textWidth = metrics.width;
+                
+                // 設定填充樣式
+                let fillStyle;
+                if (textObj.colors.length === 1) {
+                    fillStyle = textObj.colors[0].color;
+                } else {
+                    const gradient = ctx.createLinearGradient(
+                        textObj.x - textWidth/2, y, 
+                        textObj.x + textWidth/2, y
+                    );
+                    textObj.colors.forEach(c => {
+                        gradient.addColorStop(c.position, c.color);
+                    });
+                    fillStyle = gradient;
+                }
+                
+                // 繪製邊框（從粗到細）
+                if (textObj.strokes && textObj.strokes.length > 0) {
+                    textObj.strokes.forEach(stroke => {
+                        ctx.strokeStyle = stroke.color;
+                        ctx.lineWidth = stroke.width;
+                        ctx.lineJoin = 'round';
+                        ctx.miterLimit = 2;
+                        ctx.strokeText(line, textObj.x, y);
+                    });
+                }
+                
+                // 繪製填充文字
+                ctx.fillStyle = fillStyle;
+                ctx.fillText(line, textObj.x, y);
+            });
+        }
+
+        // 影片播放時持續渲染
+        elements.videoPlayer.addEventListener('play', function() {
+            elements.canvasContainer.style.display = 'block';
+            elements.videoContainer.style.display = 'none';
+            renderLoop();
+        });
+
+        elements.videoPlayer.addEventListener('pause', function() {
+            elements.canvasContainer.style.display = 'block';
+            elements.videoContainer.style.display = 'none';
+            drawFrame();
+        });
+
+        elements.videoPlayer.addEventListener('seeked', function() {
+            if (elements.videoPlayer.paused) {
+                elements.canvasContainer.style.display = 'block';
+                elements.videoContainer.style.display = 'none';
+                drawFrame();
+            }
+        });
+
+        function renderLoop() {
+            if (!elements.videoPlayer.paused && !elements.videoPlayer.ended) {
+                drawFrame();
+                requestAnimationFrame(renderLoop);
+            }
+        }
+
+        // Canvas 互動 - 選擇文字
+        elements.canvas.addEventListener('mousedown', function(e) {
+            const rect = elements.canvas.getBoundingClientRect();
+            const scaleX = elements.canvas.width / rect.width;
+            const scaleY = elements.canvas.height / rect.height;
+            const x = (e.clientX - rect.left) * scaleX;
+            const y = (e.clientY - rect.top) * scaleY;
+
+            // 檢查是否點擊預覽文字
+            if (state.previewText && state.editingIndex === -1) {
+                if (isPointInText(x, y, state.previewText)) {
+                    state.selectedText = state.previewText;
+                    return;
+                }
+            }
+
+            // 檢查是否點擊已保存的文字（從後往前，優先選擇上層文字）
+            state.selectedText = null;
+            for (let i = state.texts.length - 1; i >= 0; i--) {
+                const textObj = state.texts[i];
+                if (isPointInText(x, y, textObj)) {
+                    state.selectedText = textObj;
+                    break;
+                }
+            }
+        });
+
+        // 檢查點是否在文字範圍內
+        function isPointInText(x, y, textObj) {
+            ctx.font = `${textObj.size}px ${textObj.font}`;
+            
+            const lineSpacing = textObj.size * textObj.lineHeight;
+            const totalHeight = lineSpacing * textObj.lines.length;
+            
+            let maxWidth = 0;
+            textObj.lines.forEach(line => {
+                const metrics = ctx.measureText(line);
+                maxWidth = Math.max(maxWidth, metrics.width);
+            });
+
+            return x >= textObj.x - maxWidth/2 && x <= textObj.x + maxWidth/2 &&
+                   y >= textObj.y - totalHeight/2 && y <= textObj.y + totalHeight/2;
+        }
+
+        // Canvas 互動 - 拖動文字
+        elements.canvas.addEventListener('mousemove', function(e) {
+            if (state.selectedText && e.buttons === 1 && !state.isResizing) {
+                const rect = elements.canvas.getBoundingClientRect();
+                const scaleX = elements.canvas.width / rect.width;
+                const scaleY = elements.canvas.height / rect.height;
+                state.selectedText.x = (e.clientX - rect.left) * scaleX;
+                state.selectedText.y = (e.clientY - rect.top) * scaleY;
+                drawFrame();
+            }
+        });
+
+        // 更新調整大小控制點
+        function updateResizeHandle() {
+            if (!state.selectedText || state.selectedText.isPreview) {
+                elements.resizeHandle.style.display = 'none';
+                elements.textBbox.style.display = 'none';
+                return;
+            }
+
+            const rect = elements.canvas.getBoundingClientRect();
+            const scaleX = rect.width / elements.canvas.width;
+            const scaleY = rect.height / elements.canvas.height;
+
+            ctx.font = `${state.selectedText.size}px ${state.selectedText.font}`;
+            const lineSpacing = state.selectedText.size * state.selectedText.lineHeight;
+            const totalHeight = lineSpacing * state.selectedText.lines.length;
+            
+            let maxWidth = 0;
+            state.selectedText.lines.forEach(line => {
+                const metrics = ctx.measureText(line);
+                maxWidth = Math.max(maxWidth, metrics.width);
+            });
+
+            const left = (state.selectedText.x - maxWidth/2) * scaleX;
+            const top = (state.selectedText.y - totalHeight/2) * scaleY;
+            const width = maxWidth * scaleX;
+            const height = totalHeight * scaleY;
+
+            // 邊界框
+            elements.textBbox.style.left = left + 'px';
+            elements.textBbox.style.top = top + 'px';
+            elements.textBbox.style.width = width + 'px';
+            elements.textBbox.style.height = height + 'px';
+            elements.textBbox.style.display = 'block';
+
+            // 調整控制點
+            elements.resizeHandle.style.left = (left + width - 10) + 'px';
+            elements.resizeHandle.style.top = (top + height - 10) + 'px';
+            elements.resizeHandle.style.display = 'block';
+        }
+
+        // 調整大小功能
+        elements.resizeHandle.addEventListener('mousedown', function(e) {
+            e.stopPropagation();
+            if (!state.selectedText) return;
+            
+            state.isResizing = true;
+            state.resizeStartSize = state.selectedText.size;
+            state.resizeStartY = e.clientY;
+            elements.canvas.style.cursor = 'nwse-resize';
+        });
+
+        document.addEventListener('mousemove', function(e) {
+            if (!state.isResizing || !state.selectedText) return;
+            
+            const deltaY = e.clientY - state.resizeStartY;
+            const newSize = Math.max(12, Math.min(200, state.resizeStartSize + deltaY));
+            state.selectedText.size = Math.round(newSize);
+            
+            // 如果正在編輯，同步更新輸入框
+            if (state.editingIndex >= 0) {
+                elements.fontSize.value = state.selectedText.size;
+            }
+            
+            drawFrame();
+        });
+
+        document.addEventListener('mouseup', function() {
+            if (state.isResizing) {
+                state.isResizing = false;
+                elements.canvas.style.cursor = 'move';
+            }
+        });
+
+        elements.canvas.addEventListener('mouseup', function() {
+            updateResizeHandle();
+        });
+
+        // 清除全部
+        elements.clearBtn.addEventListener('click', function() {
+            if (confirm('確定要清除所有文字嗎?')) {
+                state.texts = [];
+                state.selectedText = null;
+                state.previewText = null;
+                exitEditMode();
+                updateTextList();
+                drawFrame();
+            }
+        });
+
+        // 匯出影片
+        elements.exportBtn.addEventListener('click', async function() {
+            if (!state.videoFile) {
+                alert('請先上傳影片!');
+                return;
+            }
+
+            elements.exportBtn.disabled = true;
+            elements.exportBtn.textContent = '⏳ 處理中...';
+            elements.progressBar.style.display = 'block';
+            elements.progressFill.style.width = '0%';
+            elements.progressFill.textContent = '0%';
+
+            try {
+                const stream = elements.canvas.captureStream(30);
+                
+                // 嘗試捕獲音訊
+                let hasAudio = false;
+                try {
+                    if (typeof elements.videoPlayer.captureStream === 'function') {
+                        const videoStream = elements.videoPlayer.captureStream();
+                        const audioTracks = videoStream.getAudioTracks();
+                        
+                        if (audioTracks.length > 0) {
+                            audioTracks.forEach(track => {
+                                stream.addTrack(track);
+                            });
+                            hasAudio = true;
+                        }
+                    }
+                } catch (audioError) {
+                    console.warn('無法捕獲音訊:', audioError);
+                }
+
+                // 選擇合適的 MIME 類型
+                let mimeType = 'video/webm;codecs=vp9';
+                if (hasAudio) {
+                    if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')) {
+                        mimeType = 'video/webm;codecs=vp9,opus';
+                    } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')) {
+                        mimeType = 'video/webm;codecs=vp8,opus';
+                    }
+                }
+
+                const mediaRecorder = new MediaRecorder(stream, {
+                    mimeType: mimeType,
+                    videoBitsPerSecond: 5000000
+                });
+
+                const chunks = [];
+                const totalDuration = elements.videoPlayer.duration;
+
+                mediaRecorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) {
+                        chunks.push(e.data);
+                    }
+                };
+
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(chunks, { type: 'video/webm' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    const timestamp = new Date().toISOString().slice(0,19).replace(/:/g,'-');
+                    a.download = `video-edited-${timestamp}.webm`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    
+                    setTimeout(() => URL.revokeObjectURL(url), 100);
+                    
+                    elements.exportBtn.disabled = false;
+                    elements.exportBtn.textContent = '💾 下載影片';
+                    elements.progressBar.style.display = 'none';
+                    
+                    elements.canvasContainer.style.display = 'block';
+                    elements.videoContainer.style.display = 'none';
+                    elements.videoPlayer.pause();
+                    elements.videoPlayer.currentTime = 0;
+                    drawFrame();
+                    
+                    alert(`✅ 影片已成功下載!\n\n檔案格式: WebM${hasAudio ? ' (含音訊)' : ' (無音訊)'}\n尺寸: ${elements.canvas.width}x${elements.canvas.height}`);
+                };
+
+                // 重置影片並開始錄製
+                elements.videoPlayer.currentTime = 0;
+                await new Promise(resolve => {
+                    elements.videoPlayer.onseeked = resolve;
+                });
+                
+                mediaRecorder.start(100);
+                elements.videoPlayer.play();
+
+                // 更新進度條
+                const updateProgress = setInterval(() => {
+                    const progress = Math.min(100, (elements.videoPlayer.currentTime / totalDuration) * 100);
+                    elements.progressFill.style.width = progress + '%';
+                    elements.progressFill.textContent = Math.round(progress) + '%';
+                }, 100);
+
+                elements.videoPlayer.onended = () => {
+                    clearInterval(updateProgress);
+                    elements.progressFill.style.width = '100%';
+                    elements.progressFill.textContent = '100%';
+                    setTimeout(() => {
+                        mediaRecorder.stop();
+                        elements.videoPlayer.onended = null;
+                        elements.videoPlayer.onseeked = null;
+                    }, 200);
+                };
+
+            } catch (error) {
+                console.error('錄製錯誤:', error);
+                alert('❌ 錄製失敗: ' + error.message + '\n\n如果問題持續，請嘗試使用較短的影片或降低畫質。');
+                
+                elements.exportBtn.disabled = false;
+                elements.exportBtn.textContent = '💾 下載影片';
+                elements.progressBar.style.display = 'none';
+            }
+        });
+
+        // 清理資源
+        window.addEventListener('beforeunload', function() {
+            if (state.videoUrl) {
+                URL.revokeObjectURL(state.videoUrl);
+            }
+        });
+
+        // 初始化
+        initTabs();
+        
+        // 使 exitEditMode 全域可用（供 HTML 內聯事件調用）
+        window.exitEditMode = exitEditMode;
+
+    </script>
+</body>
+</html>
