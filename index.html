@@ -699,6 +699,16 @@
         </div>
     </div>
 
+    <!-- (新) 自訂提示框 (取代 alert/confirm) -->
+    <div id="customAlertOverlay" style="display: none; position: fixed; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 1000;"></div>
+    <div id="customAlert" style="display: none; position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); background: white; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); z-index: 1001; padding: 30px; min-width: 300px; max-width: 90vw; text-align: center;">
+        <p id="customAlertMessage" style="font-size: 1.1em; color: #333; margin-bottom: 25px; line-height: 1.6;"></p>
+        <div id="customAlertButtons" style="display: flex; gap: 15px; justify-content: center;">
+            <button id="customAlertOk" class="btn btn-primary" style="min-width: 100px;">確定</button>
+            <button id="customAlertCancel" class="btn btn-danger" style="min-width: 100px; background: #aaa;">取消</button>
+        </div>
+    </div>
+
     <script>
         // 全域變數
         const elements = {
@@ -748,6 +758,56 @@
             isGif: false,
             debounceTimer: null
         };
+
+        // --- (新) 自訂提示框 (取代 alert/confirm) ---
+        const customAlert = {
+            box: document.getElementById('customAlert'),
+            overlay: document.getElementById('customAlertOverlay'),
+            message: document.getElementById('customAlertMessage'),
+            okBtn: document.getElementById('customAlertOk'),
+            cancelBtn: document.getElementById('customAlertCancel'),
+            resolve: null
+        };
+
+        // 顯示 alert (只有 "確定" 按鈕)
+        function showAlert(msg) {
+            customAlert.message.innerHTML = msg.replace(/\n/g, '<br>'); // 支援換行
+            customAlert.okBtn.style.display = 'block';
+            customAlert.cancelBtn.style.display = 'none';
+            customAlert.box.style.display = 'block';
+            customAlert.overlay.style.display = 'block';
+
+            return new Promise((resolve) => {
+                customAlert.resolve = resolve;
+            });
+        }
+
+        // 顯示 confirm (有 "確定" 和 "取消" 按鈕)
+        function showConfirm(msg) {
+            customAlert.message.innerHTML = msg.replace(/\n/g, '<br>'); // 支援換行
+            customAlert.okBtn.style.display = 'block';
+            customAlert.cancelBtn.style.display = 'block';
+            customAlert.box.style.display = 'block';
+            customAlert.overlay.style.display = 'block';
+
+            return new Promise((resolve) => {
+                customAlert.resolve = resolve; // resolve will be called with true/false
+            });
+        }
+
+        // 綁定按鈕事件
+        customAlert.okBtn.addEventListener('click', () => {
+            customAlert.box.style.display = 'none';
+            customAlert.overlay.style.display = 'none';
+            if (customAlert.resolve) customAlert.resolve(true); // "確定" 回傳 true
+        });
+
+        customAlert.cancelBtn.addEventListener('click', () => {
+            customAlert.box.style.display = 'none';
+            customAlert.overlay.style.display = 'none';
+            if (customAlert.resolve) customAlert.resolve(false); // "取消" 回傳 false
+        });
+        // --- (新) 自訂提示框結束 ---
 
         // 標籤切換功能
         function initTabs() {
@@ -932,7 +992,7 @@
                     
                 } catch (error) {
                     console.error('字型載入失敗:', error);
-                    alert(`字型 "${fontName}" 載入失敗: ${error.message}`);
+                    await showAlert(`字型 "${fontName}" 載入失敗: ${error.message}`);
                 }
             }
         });
@@ -999,14 +1059,14 @@
         });
 
         // 添加或更新文字
-        elements.addOrUpdateBtn.addEventListener('click', function() {
+        elements.addOrUpdateBtn.addEventListener('click', async function() {
             const text = elements.textInput.value.trim();
             const size = parseInt(elements.fontSize.value);
             const font = elements.fontFamily.value;
             const lineHeight = parseFloat(elements.lineHeight.value);
 
             if (!text) {
-                alert('請輸入文字內容!');
+                await showAlert('請輸入文字內容!');
                 return;
             }
 
@@ -1107,7 +1167,8 @@
             // 重建邊框選擇器
             elements.strokePickerGroup.innerHTML = '';
             if (textObj.strokes && textObj.strokes.length > 0) {
-                textObj.strokes.forEach((strokeData, i) => {
+                // (新) 使用 slice().reverse() 來反轉順序，讓 UI 顯示更直觀
+                textObj.strokes.slice().reverse().forEach((strokeData, i) => {
                     const strokeItem = document.createElement('div');
                     strokeItem.className = 'stroke-item';
                     
@@ -1147,8 +1208,9 @@
         }
 
         // 刪除文字
-        function deleteText(index) {
-            if (confirm('確定要刪除這個文字嗎?')) {
+        async function deleteText(index) {
+            // (新) 改用 await showConfirm
+            if (await showConfirm('確定要刪除這個文字嗎?')) {
                 state.texts.splice(index, 1);
                 if (state.editingIndex === index) {
                     exitEditMode();
@@ -1479,8 +1541,9 @@
         });
 
         // 清除全部
-        elements.clearBtn.addEventListener('click', function() {
-            if (confirm('確定要清除所有文字嗎?')) {
+        elements.clearBtn.addEventListener('click', async function() {
+            // (新) 改用 await showConfirm
+            if (await showConfirm('確定要清除所有文字嗎?')) {
                 state.texts = [];
                 state.selectedText = null;
                 state.previewText = null;
@@ -1493,7 +1556,7 @@
         // 匯出影片
         elements.exportBtn.addEventListener('click', async function() {
             if (!state.videoFile) {
-                alert('請先上傳影片!');
+                await showAlert('請先上傳影片!');
                 return;
             }
 
@@ -1548,7 +1611,7 @@
                     }
                 };
 
-                mediaRecorder.onstop = () => {
+                mediaRecorder.onstop = async () => {
                     const blob = new Blob(chunks, { type: 'video/webm' });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
@@ -1571,7 +1634,7 @@
                     elements.videoPlayer.currentTime = 0;
                     drawFrame();
                     
-                    alert(`✅ 影片已成功下載!\n\n檔案格式: WebM${hasAudio ? ' (含音訊)' : ' (無音訊)'}\n尺寸: ${elements.canvas.width}x${elements.canvas.height}`);
+                    await showAlert(`✅ 影片已成功下載!\n\n檔案格式: WebM${hasAudio ? ' (含音訊)' : ' (無音訊)'}\n尺寸: ${elements.canvas.width}x${elements.canvas.height}`);
                 };
 
                 // 重置影片並開始錄製
@@ -1603,7 +1666,7 @@
 
             } catch (error) {
                 console.error('錄製錯誤:', error);
-                alert('❌ 錄製失敗: ' + error.message + '\n\n如果問題持續，請嘗試使用較短的影片或降低畫質。');
+                await showAlert('❌ 錄製失敗: ' + error.message + '\n\n如果問題持續，請嘗試使用較短的影片或降低畫質。');
                 
                 elements.exportBtn.disabled = false;
                 elements.exportBtn.textContent = '💾 下載影片';
