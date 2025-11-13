@@ -544,13 +544,27 @@
                 grid-template-columns: 1fr;
             }
             
+            /* (新) 調整順序：讓預覽(right-panel)在 controls(left-panel) 的上方 */
             .right-panel {
                 position: relative;
                 top: 0;
+                grid-row: 2; /* 預覽區在第 2 列 */
+            }
+            
+            .left-panel {
+                grid-row: 3; /* 控制區在第 3 列 */
             }
             
             .upload-section {
                 grid-column: 1;
+                grid-row: 1; /* 上傳區在第 1 列 */
+            }
+
+            /* (新) 移除按鈕的 sticky 屬性，避免在手機上遮擋或消失 */
+            .action-buttons {
+                position: static;
+                margin-top: 20px;
+                border-top: 2px solid #ddd;
             }
         }
     </style>
@@ -1226,4 +1240,479 @@
             
             let sx, sy, sw, sh;
             
-            if (videoRatio >
+            if (videoRatio > canvasRatio) {
+                sh = elements.videoPlayer.videoHeight;
+                sw = sh * canvasRatio;
+                sx = (elements.videoPlayer.videoWidth - sw) / 2;
+                sy = 0;
+            } else {
+                sw = elements.videoPlayer.videoWidth;
+                sh = sw / canvasRatio;
+                sx = 0;
+                sy = (elements.videoPlayer.videoHeight - sh) / 2;
+            }
+            
+            ctx.drawImage(elements.videoPlayer, sx, sy, sw, sh, 0, 0, elements.canvas.width, elements.canvas.height);
+
+            // 繪製已保存的文字
+            state.texts.forEach(textObj => {
+                drawText(textObj);
+            });
+
+            // 繪製預覽文字（半透明）
+            if (state.previewText && state.editingIndex === -1) {
+                ctx.globalAlpha = 0.7;
+                drawText(state.previewText);
+                ctx.globalAlpha = 1.0;
+            }
+
+            updateResizeHandle();
+        }
+
+        // 繪製文字
+        function drawText(textObj) {
+            ctx.font = `${textObj.size}px ${textObj.font}`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            const lineSpacing = textObj.size * textObj.lineHeight;
+            const totalHeight = lineSpacing * textObj.lines.length;
+            const startY = textObj.y - (totalHeight / 2) + (lineSpacing / 2);
+
+            textObj.lines.forEach((line, index) => {
+                const y = startY + (index * lineSpacing);
+                
+                const metrics = ctx.measureText(line);
+                const textWidth = metrics.width;
+                
+                // 設定填充樣式
+                let fillStyle;
+                if (textObj.colors.length === 1) {
+                    fillStyle = textObj.colors[0].color;
+                } else {
+                    const gradient = ctx.createLinearGradient(
+                        textObj.x - textWidth/2, y, 
+                        textObj.x + textWidth/2, y
+                    );
+                    textObj.colors.forEach(c => {
+                        gradient.addColorStop(c.position, c.color);
+                    });
+                    fillStyle = gradient;
+                }
+                
+                // 繪製邊框（從粗到細）
+                if (textObj.strokes && textObj.strokes.length > 0) {
+                    textObj.strokes.forEach(stroke => {
+                        ctx.strokeStyle = stroke.color;
+                        ctx.lineWidth = stroke.width;
+                        ctx.lineJoin = 'round';
+                        ctx.miterLimit = 2;
+                        ctx.strokeText(line, textObj.x, y);
+                    });
+                }
+                
+                // 繪製填充文字
+                ctx.fillStyle = fillStyle;
+                ctx.fillText(line, textObj.x, y);
+            });
+        }
+
+        // 影片播放時持續渲染
+        elements.videoPlayer.addEventListener('play', function() {
+            elements.canvasContainer.style.display = 'block';
+            elements.videoContainer.style.display = 'none';
+            renderLoop();
+        });
+
+        elements.videoPlayer.addEventListener('pause', function() {
+            elements.canvasContainer.style.display = 'block';
+            elements.videoContainer.style.display = 'none';
+            drawFrame();
+        });
+
+        elements.videoPlayer.addEventListener('seeked', function() {
+            if (elements.videoPlayer.paused) {
+                elements.canvasContainer.style.display = 'block';
+                elements.videoContainer.style.display = 'none';
+                drawFrame();
+            }
+        });
+
+        function renderLoop() {
+            if (!elements.videoPlayer.paused && !elements.videoPlayer.ended) {
+                drawFrame();
+                requestAnimationFrame(renderLoop);
+            }
+        }
+
+        // Canvas 互動 - 選擇文字
+        elements.canvas.addEventListener('mousedown', function(e) {
+            const rect = elements.canvas.getBoundingClientRect();
+            const scaleX = elements.canvas.width / rect.width;
+            const scaleY = elements.canvas.height / rect.height;
+            const x = (e.clientX - rect.left) * scaleX;
+            const y = (e.clientY - rect.top) * scaleY;
+
+            // 檢查是否點擊預覽文字
+            if (state.previewText && state.editingIndex === -1) {
+                if (isPointInText(x, y, state.previewText)) {
+                    state.selectedText = state.previewText;
+                    return;
+                }
+            }
+
+            // 檢查是否點擊已保存的文字（從後往前，優先選擇上層文字）
+            state.selectedText = null;
+            for (let i = state.texts.length - 1; i >= 0; i--) {
+                const textObj = state.texts[i];
+                if (isPointInText(x, y, textObj)) {
+                    state.selectedText = textObj;
+                    break;
+                }
+            }
+        });
+
+        // 檢查點是否在文字範圍內
+        function isPointInText(x, y, textObj) {
+            ctx.font = `${textObj.size}px ${textObj.font}`;
+            
+            const lineSpacing = textObj.size * textObj.lineHeight;
+            const totalHeight = lineSpacing * textObj.lines.length;
+            
+            let maxWidth = 0;
+            textObj.lines.forEach(line => {
+                const metrics = ctx.measureText(line);
+                maxWidth = Math.max(maxWidth, metrics.width);
+            });
+
+            return x >= textObj.x - maxWidth/2 && x <= textObj.x + maxWidth/2 &&
+                   y >= textObj.y - totalHeight/2 && y <= textObj.y + totalHeight/2;
+        }
+
+        // Canvas 互動 - 拖動文字
+        elements.canvas.addEventListener('mousemove', function(e) {
+            if (state.selectedText && e.buttons === 1 && !state.isResizing) {
+                const rect = elements.canvas.getBoundingClientRect();
+                const scaleX = elements.canvas.width / rect.width;
+                const scaleY = elements.canvas.height / rect.height;
+                state.selectedText.x = (e.clientX - rect.left) * scaleX;
+                state.selectedText.y = (e.clientY - rect.top) * scaleY;
+                drawFrame();
+            }
+        });
+
+        // 更新調整大小控制點
+        function updateResizeHandle() {
+            if (!state.selectedText || state.selectedText.isPreview) {
+                elements.resizeHandle.style.display = 'none';
+                elements.textBbox.style.display = 'none';
+                return;
+            }
+
+            const rect = elements.canvas.getBoundingClientRect();
+            const scaleX = rect.width / elements.canvas.width;
+            const scaleY = rect.height / elements.canvas.height;
+
+            ctx.font = `${state.selectedText.size}px ${state.selectedText.font}`;
+            const lineSpacing = state.selectedText.size * state.selectedText.lineHeight;
+            const totalHeight = lineSpacing * state.selectedText.lines.length;
+            
+            let maxWidth = 0;
+            state.selectedText.lines.forEach(line => {
+                const metrics = ctx.measureText(line);
+                maxWidth = Math.max(maxWidth, metrics.width);
+            });
+
+            const left = (state.selectedText.x - maxWidth/2) * scaleX;
+            const top = (state.selectedText.y - totalHeight/2) * scaleY;
+            const width = maxWidth * scaleX;
+            const height = totalHeight * scaleY;
+
+            // 邊界框
+            elements.textBbox.style.left = left + 'px';
+            elements.textBbox.style.top = top + 'px';
+            elements.textBbox.style.width = width + 'px';
+            elements.textBbox.style.height = height + 'px';
+            elements.textBbox.style.display = 'block';
+
+            // 調整控制點
+            elements.resizeHandle.style.left = (left + width - 10) + 'px';
+            elements.resizeHandle.style.top = (top + height - 10) + 'px';
+            elements.resizeHandle.style.display = 'block';
+        }
+
+        // 調整大小功能
+        elements.resizeHandle.addEventListener('mousedown', function(e) {
+            e.stopPropagation();
+            if (!state.selectedText) return;
+            
+            state.isResizing = true;
+            state.resizeStartSize = state.selectedText.size;
+            state.resizeStartY = e.clientY;
+            elements.canvas.style.cursor = 'nwse-resize';
+        });
+
+        document.addEventListener('mousemove', function(e) {
+            if (!state.isResizing || !state.selectedText) return;
+            
+            const deltaY = e.clientY - state.resizeStartY;
+            const newSize = Math.max(12, Math.min(200, state.resizeStartSize + deltaY));
+            state.selectedText.size = Math.round(newSize);
+            
+            // 如果正在編輯，同步更新輸入框
+            if (state.editingIndex >= 0) {
+                elements.fontSize.value = state.selectedText.size;
+            }
+            
+            drawFrame();
+        });
+
+        document.addEventListener('mouseup', function() {
+            if (state.isResizing) {
+                state.isResizing = false;
+                elements.canvas.style.cursor = 'move';
+            }
+        });
+
+        elements.canvas.addEventListener('mouseup', function() {
+            updateResizeHandle();
+        });
+
+        // 清除全部
+        elements.clearBtn.addEventListener('click', function() {
+            if (confirm('確定要清除所有文字嗎?')) {
+                state.texts = [];
+                state.selectedText = null;
+                state.previewText = null;
+                exitEditMode();
+                updateTextList();
+                drawFrame();
+            }
+        });
+
+        // 匯出影片
+        elements.exportBtn.addEventListener('click', async function() {
+            if (!state.videoFile) {
+                alert('請先上傳影片!');
+                return;
+            }
+
+            elements.exportBtn.disabled = true;
+            elements.exportBtn.textContent = '⏳ 處理中...';
+            elements.progressBar.style.display = 'block';
+            elements.progressFill.style.width = '0%';
+            elements.progressFill.textContent = '0%';
+
+            try {
+                const stream = elements.canvas.captureStream(30);
+                
+                // 嘗試捕獲音訊
+                let hasAudio = false;
+                try {
+                    if (typeof elements.videoPlayer.captureStream === 'function') {
+                        const videoStream = elements.videoPlayer.captureStream();
+                        const audioTracks = videoStream.getAudioTracks();
+                        
+                        if (audioTracks.length > 0) {
+                            audioTracks.forEach(track => {
+                                stream.addTrack(track);
+                            });
+                            hasAudio = true;
+                        }
+                    }
+                } catch (audioError) {
+                    console.warn('無法捕獲音訊:', audioError);
+                }
+
+                // 選擇合適的 MIME 類型
+                let mimeType = 'video/webm;codecs=vp9';
+                if (hasAudio) {
+                    if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')) {
+                        mimeType = 'video/webm;codecs=vp9,opus';
+                    } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')) {
+                        mimeType = 'video/webm;codecs=vp8,opus';
+                    }
+                }
+
+                const mediaRecorder = new MediaRecorder(stream, {
+                    mimeType: mimeType,
+                    videoBitsPerSecond: 5000000
+                });
+
+                const chunks = [];
+                const totalDuration = elements.videoPlayer.duration;
+
+                mediaRecorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) {
+                        chunks.push(e.data);
+                    }
+                };
+
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(chunks, { type: 'video/webm' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    const timestamp = new Date().toISOString().slice(0,19).replace(/:/g,'-');
+                    a.download = `video-edited-${timestamp}.webm`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    
+                    setTimeout(() => URL.revokeObjectURL(url), 100);
+                    
+                    elements.exportBtn.disabled = false;
+                    elements.exportBtn.textContent = '💾 下載影片';
+                    elements.progressBar.style.display = 'none';
+                    
+                    elements.canvasContainer.style.display = 'block';
+                    elements.videoContainer.style.display = 'none';
+                    elements.videoPlayer.pause();
+                    elements.videoPlayer.currentTime = 0;
+                    drawFrame();
+                    
+                    alert(`✅ 影片已成功下載!\n\n檔案格式: WebM${hasAudio ? ' (含音訊)' : ' (無音訊)'}\n尺寸: ${elements.canvas.width}x${elements.canvas.height}`);
+                };
+
+                // 重置影片並開始錄製
+                elements.videoPlayer.currentTime = 0;
+                await new Promise(resolve => {
+                    elements.videoPlayer.onseeked = resolve;
+                });
+                
+                mediaRecorder.start(100);
+                elements.videoPlayer.play();
+
+                // 更新進度條
+                const updateProgress = setInterval(() => {
+                    const progress = Math.min(100, (elements.videoPlayer.currentTime / totalDuration) * 100);
+                    elements.progressFill.style.width = progress + '%';
+                    elements.progressFill.textContent = Math.round(progress) + '%';
+                }, 100);
+
+                elements.videoPlayer.onended = () => {
+                    clearInterval(updateProgress);
+                    elements.progressFill.style.width = '100%';
+                    elements.progressFill.textContent = '100%';
+                    setTimeout(() => {
+                        mediaRecorder.stop();
+                        elements.videoPlayer.onended = null;
+                        elements.videoPlayer.onseeked = null;
+                    }, 200);
+                };
+
+            } catch (error) {
+                console.error('錄製錯誤:', error);
+                alert('❌ 錄製失敗: ' + error.message + '\n\n如果問題持續，請嘗試使用較短的影片或降低畫質。');
+                
+                elements.exportBtn.disabled = false;
+                elements.exportBtn.textContent = '💾 下載影片';
+                elements.progressBar.style.display = 'none';
+            }
+        });
+
+        // 清理資源
+        window.addEventListener('beforeunload', function() {
+            if (state.videoUrl) {
+                URL.revokeObjectURL(state.videoUrl);
+            }
+        });
+
+        // --- (新) 支援手機觸控事件 ---
+        // 輔助函數：獲取觸控座標
+        function getTouchCoords(e) {
+            const rect = elements.canvas.getBoundingClientRect();
+            const scaleX = elements.canvas.width / rect.width;
+            const scaleY = elements.canvas.height / rect.height;
+            return {
+                x: (e.touches[0].clientX - rect.left) * scaleX,
+                y: (e.touches[0].clientY - rect.top) * scaleY
+            };
+        }
+
+        // 1. Canvas - 選擇文字 (touchstart)
+        elements.canvas.addEventListener('touchstart', function(e) {
+            e.preventDefault(); // 阻止頁面滾動
+            const { x, y } = getTouchCoords(e);
+
+            // (邏輯同 mousedown)
+            if (state.previewText && state.editingIndex === -1) {
+                if (isPointInText(x, y, state.previewText)) {
+                    state.selectedText = state.previewText;
+                    return;
+                }
+            }
+            state.selectedText = null;
+            for (let i = state.texts.length - 1; i >= 0; i--) {
+                const textObj = state.texts[i];
+                if (isPointInText(x, y, textObj)) {
+                    state.selectedText = textObj;
+                    break;
+                }
+            }
+        }, { passive: false });
+
+        // 2. Canvas - 拖動文字 (touchmove)
+        elements.canvas.addEventListener('touchmove', function(e) {
+            if (state.selectedText && !state.isResizing) {
+                e.preventDefault(); // 阻止頁面滾動
+                const { x, y } = getTouchCoords(e);
+                state.selectedText.x = x;
+                state.selectedText.y = y;
+                drawFrame();
+            }
+        }, { passive: false });
+
+        // 3. Canvas - 結束拖動 (touchend)
+        elements.canvas.addEventListener('touchend', function() {
+            updateResizeHandle();
+        });
+
+        // 4. 調整大小控制點 - 開始 (touchstart)
+        elements.resizeHandle.addEventListener('touchstart', function(e) {
+            e.stopPropagation();
+            e.preventDefault(); // 阻止頁面滾動
+            if (!state.selectedText) return;
+            
+            state.isResizing = true;
+            state.resizeStartSize = state.selectedText.size;
+            state.resizeStartY = e.touches[0].clientY;
+        }, { passive: false });
+
+        // 5. Document - 調整大小中 (touchmove)
+        document.addEventListener('touchmove', function(e) {
+            if (!state.isResizing || !state.selectedText) return;
+            
+            e.preventDefault(); // 阻止頁面滾動
+            
+            if (e.touches && e.touches.length > 0) {
+                const deltaY = e.touches[0].clientY - state.resizeStartY;
+                const newSize = Math.max(12, Math.min(200, state.resizeStartSize + deltaY));
+                state.selectedText.size = Math.round(newSize);
+                
+                if (state.editingIndex >= 0) {
+                    elements.fontSize.value = state.selectedText.size;
+                }
+                
+                drawFrame();
+            }
+        }, { passive: false });
+
+        // 6. Document - 結束調整大小 (touchend)
+        document.addEventListener('touchend', function() {
+            if (state.isResizing) {
+                state.isResizing = false;
+                elements.canvas.style.cursor = 'move';
+            }
+        });
+        // --- (新) 觸控事件結束 ---
+
+        // 初始化
+        initTabs();
+        
+        // 使 exitEditMode 全域可用（供 HTML 內聯事件調用）
+        window.exitEditMode = exitEditMode;
+
+    </script>
+</body>
+</html>
