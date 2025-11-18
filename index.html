@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>影片文字編輯器 - 完整功能版</title>
+    <title>影片文字編輯器 - 完整功能版 (LINE優化版)</title>
     <style>
         * {
             margin: 0;
@@ -544,23 +544,21 @@
                 grid-template-columns: 1fr;
             }
             
-            /* (新) 調整順序：讓預覽(right-panel)在 controls(left-panel) 的上方 */
             .right-panel {
                 position: relative;
                 top: 0;
-                grid-row: 2; /* 預覽區在第 2 列 */
+                grid-row: 2;
             }
             
             .left-panel {
-                grid-row: 3; /* 控制區在第 3 列 */
+                grid-row: 3;
             }
             
             .upload-section {
                 grid-column: 1;
-                grid-row: 1; /* 上傳區在第 1 列 */
+                grid-row: 1;
             }
 
-            /* (新) 移除按鈕的 sticky 屬性，避免在手機上遮擋或消失 */
             .action-buttons {
                 position: static;
                 margin-top: 20px;
@@ -573,7 +571,7 @@
     <div class="container">
         <div class="header">
             <h1>🎬 影片文字編輯器</h1>
-            <p>支援影片/GIF + 保留原音訊 + 多色漸層文字 + 多層邊框 + 自訂字型</p>
+            <p>支援影片/GIF + 純畫面(無音訊) + 多色漸層文字 + 動畫效果 + 自訂字型</p>
         </div>
 
         <div class="content">
@@ -597,7 +595,7 @@
                     <div class="tab-navigation">
                         <button class="tab-btn active" data-tab="basic">📝 基本</button>
                         <button class="tab-btn" data-tab="style">🎨 樣式</button>
-                        <button class="tab-btn" data-tab="list">📋 列表</button>
+                        <button class="tab-btn" data-tab="animation">🎬 動畫</button> <button class="tab-btn" data-tab="list">📋 列表</button>
                     </div>
 
                     <div id="tab-basic" class="tab-content active">
@@ -656,6 +654,31 @@
                         </div>
                     </div>
 
+                    <div id="tab-animation" class="tab-content">
+                        <div class="control-group">
+                            <label>動畫類型</label>
+                            <select id="animType">
+                                <option value="none">無動畫</option>
+                                <option value="fade">漸入/漸出 (Fade In/Out)</option>
+                                <option value="fly-up">上滑入/下滑出 (Fly Up/Down)</option>
+                                <option value="scale">縮放入/縮放出 (Scale In/Out)</option>
+                            </select>
+                        </div>
+                        <div class="color-size-group">
+                            <div class="control-group">
+                                <label>顯示開始時間 (秒)</label>
+                                <input type="number" id="startTime" value="0" min="0" step="0.1">
+                            </div>
+                            <div class="control-group">
+                                <label>顯示結束時間 (秒)</label>
+                                <input type="number" id="endTime" min="0" step="0.1" placeholder="留空為影片結束">
+                            </div>
+                        </div>
+                        <div class="control-group">
+                            <label>動畫效果時長 (秒)</label>
+                            <input type="number" id="animDuration" value="0.5" min="0" max="5" step="0.1">
+                        </div>
+                    </div>
                     <div id="tab-list" class="tab-content">
                         <div id="textList" class="text-list" style="display: none;">
                             <h4 style="margin-bottom: 10px; color: #555;">已添加的文字</h4>
@@ -729,7 +752,13 @@
             textList: document.getElementById('textList'),
             textListItems: document.getElementById('textListItems'),
             emptyListMessage: document.getElementById('emptyListMessage'),
-            modeIndicator: document.getElementById('modeIndicator')
+            modeIndicator: document.getElementById('modeIndicator'),
+            // NEW ANIMATION ELEMENTS
+            startTime: document.getElementById('startTime'),
+            endTime: document.getElementById('endTime'),
+            animType: document.getElementById('animType'),
+            animDuration: document.getElementById('animDuration')
+            // END NEW ANIMATION ELEMENTS
         };
 
         const ctx = elements.canvas.getContext('2d');
@@ -783,7 +812,7 @@
             };
         }
 
-        // 即時預覽更新 (修正後的版本)
+        // 即時預覽更新
         function updatePreview() {
             const text = elements.textInput.value;
             if (!text || !elements.canvas.width) {
@@ -792,9 +821,6 @@
                 return;
             }
 
-            const lines = text.split('\n');
-
-            // *** 編輯模式即時更新邏輯 (已修正) ***
             let targetText;
 
             if (state.editingIndex >= 0) {
@@ -808,10 +834,20 @@
             }
 
             // 將新的屬性賦值給目標文字物件 (targetText)
-            targetText.lines = lines;
+            targetText.lines = text.split('\n');
             targetText.size = parseInt(elements.fontSize.value) || 48;
             targetText.font = elements.fontFamily.value;
             targetText.lineHeight = parseFloat(elements.lineHeight.value) || 1.2;
+
+            // NEW ANIMATION PROPERTIES
+            const videoDuration = elements.videoPlayer.duration || 9999;
+            const endTimeValue = elements.endTime.value.trim() === '' ? videoDuration : parseFloat(elements.endTime.value);
+
+            targetText.startTime = parseFloat(elements.startTime.value) || 0;
+            targetText.endTime = endTimeValue;
+            targetText.animType = elements.animType.value;
+            targetText.animDuration = parseFloat(elements.animDuration.value) || 0.5;
+
 
             // 僅在新增模式下設定座標 (編輯模式下保持原座標)
             if (state.editingIndex === -1) {
@@ -824,7 +860,7 @@
             targetText.colors = [];
             targetText.strokes = [];
 
-            // 收集顏色設定 (已修復，整合進 targetText)
+            // 收集顏色設定
             const colorItems = elements.colorPickerGroup.querySelectorAll('.color-item');
             colorItems.forEach(item => {
                 const colorInput = item.querySelector('.text-color');
@@ -837,7 +873,7 @@
                 }
             });
 
-            // 收集邊框設定 (已修復，整合進 targetText)
+            // 收集邊框設定
             const strokeItems = elements.strokePickerGroup.querySelectorAll('.stroke-item');
             strokeItems.forEach(item => {
                 const colorInput = item.querySelector('.stroke-color');
@@ -853,9 +889,7 @@
                 }
             });
 
-            // 確保邊框從粗到細繪製
             targetText.strokes.sort((a, b) => b.width - a.width);
-            
             drawFrame();
         }
 
@@ -872,6 +906,13 @@
             elements.colorPickerGroup.addEventListener('change', debouncedUpdatePreview);
             elements.strokePickerGroup.addEventListener('input', debouncedUpdatePreview);
             elements.strokePickerGroup.addEventListener('change', debouncedUpdatePreview);
+
+            // NEW ANIMATION LISTENERS
+            elements.startTime.addEventListener('input', debouncedUpdatePreview);
+            elements.endTime.addEventListener('input', debouncedUpdatePreview);
+            elements.animType.addEventListener('change', debouncedUpdatePreview);
+            elements.animDuration.addEventListener('input', debouncedUpdatePreview);
+            // END NEW ANIMATION LISTENERS
         }
 
         // 影片上傳處理
@@ -901,16 +942,11 @@
                 elements.canvas.width = Math.min(maxWidth, elements.videoPlayer.videoWidth);
                 elements.canvas.height = elements.canvas.width / aspectRatio;
                 
-                // 顯示媒體資訊
-                const hasAudio = elements.videoPlayer.mozHasAudio || 
-                                elements.videoPlayer.webkitAudioDecodedByteCount > 0 || 
-                                (elements.videoPlayer.audioTracks && elements.videoPlayer.audioTracks.length > 0);
-                
                 elements.mediaInfo.style.display = 'block';
                 elements.mediaInfo.innerHTML = `
                     📊 檔案資訊: ${fileType} | ${elements.videoPlayer.videoWidth}x${elements.videoPlayer.videoHeight} | ${fileSize} MB
                     ${!state.isGif ? ` | 時長: ${elements.videoPlayer.duration.toFixed(1)}秒` : ''}
-                    ${hasAudio ? ' | 🔊 有音訊' : ' | 🔇 無音訊'}
+                    | 🔇 純畫面模式(無音訊)
                 `;
                 
                 elements.videoPlayer.currentTime = 0.1;
@@ -1023,6 +1059,13 @@
             const font = elements.fontFamily.value;
             const lineHeight = parseFloat(elements.lineHeight.value);
 
+            // NEW ANIMATION PROPERTIES
+            const videoDuration = elements.videoPlayer.duration || 9999;
+            const endTimeValue = elements.endTime.value.trim() === '' ? 9999 : parseFloat(elements.endTime.value);
+            const startTime = parseFloat(elements.startTime.value) || 0;
+            const animType = elements.animType.value;
+            const animDuration = parseFloat(elements.animDuration.value) || 0.5;
+
             if (!text) {
                 alert('請輸入文字內容!');
                 return;
@@ -1040,7 +1083,13 @@
                 y: state.editingIndex >= 0 ? state.texts[state.editingIndex].y : 
                    (state.previewText ? state.previewText.y : elements.canvas.height / 2),
                 colors: [],
-                strokes: []
+                strokes: [],
+                // NEW ANIMATION PROPERTIES
+                startTime: Math.max(0, startTime),
+                endTime: endTimeValue,
+                animType: animType,
+                animDuration: Math.max(0, animDuration)
+                // END NEW ANIMATION PROPERTIES
             };
 
             // 收集顏色
@@ -1090,6 +1139,13 @@
             elements.fontSize.value = textObj.size;
             elements.fontFamily.value = textObj.font;
             elements.lineHeight.value = textObj.lineHeight;
+
+            // NEW ANIMATION PROPERTIES
+            elements.startTime.value = textObj.startTime;
+            elements.endTime.value = textObj.endTime === 9999 ? '' : textObj.endTime;
+            elements.animType.value = textObj.animType || 'none';
+            elements.animDuration.value = textObj.animDuration || 0.5;
+            // END NEW ANIMATION PROPERTIES
             
             // 重建顏色選擇器
             elements.colorPickerGroup.innerHTML = '';
@@ -1186,6 +1242,11 @@
             updateModeIndicator(false);
             updateTextList();
             drawFrame();
+            // 重設動畫欄位
+            elements.startTime.value = 0;
+            elements.endTime.value = '';
+            elements.animType.value = 'none';
+            elements.animDuration.value = 0.5;
         }
 
         // 更新模式指示器
@@ -1219,11 +1280,24 @@
                 
                 const preview = textObj.lines.join(' ').substring(0, 30) + 
                                (textObj.lines.join(' ').length > 30 ? '...' : '');
+
+                let animText = '';
+                if (textObj.animType && textObj.animType !== 'none') {
+                    const animNameMap = {
+                        'fade': '漸入/漸出',
+                        'fly-up': '上滑入/下滑出',
+                        'scale': '縮放入/縮放出',
+                        'none': '無動畫'
+                    };
+                    const start = textObj.startTime.toFixed(1);
+                    const end = textObj.endTime === 9999 ? '結束' : textObj.endTime.toFixed(1);
+                    animText = ` | 動畫: ${animNameMap[textObj.animType]} (${start}s ~ ${end}s)`;
+                }
                 
                 item.innerHTML = `
                     <div class="text-item-content">
                         <strong>${index + 1}.</strong> ${preview}<br>
-                        <small style="color: #666;">字型: ${textObj.font} | 大小: ${textObj.size}px | 顏色: ${textObj.colors.length}色 | 邊框: ${textObj.strokes.length}層</small>
+                        <small style="color: #666;">字型: ${textObj.font} | 大小: ${textObj.size}px | 顏色: ${textObj.colors.length}色 | 邊框: ${textObj.strokes.length}層${animText}</small>
                     </div>
                     <div class="text-item-actions">
                         <button class="text-item-btn btn-edit" data-index="${index}">✏️ 編輯</button>
@@ -1245,11 +1319,84 @@
             });
         }
 
+        // NEW ANIMATION LOGIC FUNCTION
+        function applyAnimation(textObj, currentTime) {
+            const { animType, startTime, endTime, animDuration } = textObj;
+            const totalVideoDuration = elements.videoPlayer.duration || 9999;
+            const finalEndTime = endTime === 9999 ? totalVideoDuration : endTime;
+            
+            let xOffset = 0;
+            let yOffset = 0;
+            let opacity = 1;
+            let scale = 1;
+            
+            // 1. 決定是否可見
+            if (currentTime < startTime || currentTime > finalEndTime) {
+                return { xOffset: 0, yOffset: 0, opacity: 0, scale: 0, visible: false };
+            }
+
+            // 無動畫
+            if (animType === 'none') {
+                return { xOffset: 0, yOffset: 0, opacity: 1, scale: 1, visible: true };
+            }
+
+            // 2. 處理入場動畫
+            const fadeInTime = Math.min(startTime + animDuration, finalEndTime);
+            if (currentTime < fadeInTime) {
+                let progress = (currentTime - startTime) / animDuration; // 0 to 1
+                progress = Math.min(1, Math.max(0, progress));
+
+                opacity = progress;
+                
+                if (animType === 'fly-up') {
+                    // 100px 距離飛入 (0.5s)
+                    yOffset = 100 * (1 - progress);
+                } else if (animType === 'scale') {
+                    scale = progress;
+                }
+            }
+            
+            // 3. 處理出場動畫
+            const fadeOutTime = Math.max(startTime, finalEndTime - animDuration);
+            if (currentTime > fadeOutTime) {
+                let progress = 1 - ((currentTime - fadeOutTime) / animDuration); // 1 to 0
+                progress = Math.min(1, Math.max(0, progress));
+
+                opacity = progress;
+                
+                if (animType === 'fly-up') {
+                    // 100px 距離飛出 (0.5s)
+                    yOffset = -100 * (1 - progress);
+                } else if (animType === 'scale') {
+                    scale = progress;
+                }
+            }
+
+            // 4. 確保非動畫狀態下，數值為預設
+            if (currentTime >= fadeInTime && currentTime <= fadeOutTime) {
+                xOffset = 0;
+                yOffset = 0;
+                opacity = 1;
+                scale = 1;
+            }
+            
+            return { 
+                xOffset, 
+                yOffset, 
+                opacity: Math.max(0, Math.min(1, opacity)), // 限制範圍 0~1
+                scale: Math.max(0, Math.min(1, scale)), // 限制範圍 0~1
+                visible: true 
+            };
+        }
+        // END NEW ANIMATION LOGIC FUNCTION
+
         // 繪製幀
         function drawFrame() {
             if (!elements.videoPlayer.videoWidth || !elements.videoPlayer.videoHeight) {
                 return;
             }
+
+            const currentTime = elements.videoPlayer.currentTime; // Get current time
             
             ctx.clearRect(0, 0, elements.canvas.width, elements.canvas.height);
             
@@ -1274,28 +1421,56 @@
 
             // 繪製已保存的文字
             state.texts.forEach(textObj => {
-                drawText(textObj);
+                drawText(textObj, currentTime);
             });
 
             // 繪製預覽文字（半透明）
             if (state.previewText && state.editingIndex === -1) {
                 ctx.globalAlpha = 0.7;
-                drawText(state.previewText);
+                drawText(state.previewText, currentTime);
                 ctx.globalAlpha = 1.0;
             }
 
             updateResizeHandle();
         }
 
-        // 繪製文字
-        function drawText(textObj) {
+        // 繪製文字 (MODIFIED TO ACCEPT currentTime)
+        function drawText(textObj, currentTime) {
+            // Apply animation effects
+            const animProps = applyAnimation(textObj, currentTime);
+
+            if (!animProps.visible) {
+                return;
+            }
+
+            // Save the canvas state before transformation
+            ctx.save();
+
+            // Apply global alpha (opacity)
+            ctx.globalAlpha = animProps.opacity;
+
+            // Move the canvas origin to the text's coordinate center
+            ctx.translate(textObj.x, textObj.y);
+            
+            // Apply scale (transforms around the new origin)
+            ctx.scale(animProps.scale, animProps.scale);
+            
+            // Apply translation (fly in/out effect)
+            ctx.translate(animProps.xOffset, animProps.yOffset);
+            
+            // Now, all subsequent drawing will be centered at (0, 0) of this new transformed coordinate system
+
+            // Text drawing properties (relative to the new origin)
+            const drawX = 0; 
+            const drawY = 0;
+
             ctx.font = `${textObj.size}px ${textObj.font}`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             
             const lineSpacing = textObj.size * textObj.lineHeight;
             const totalHeight = lineSpacing * textObj.lines.length;
-            const startY = textObj.y - (totalHeight / 2) + (lineSpacing / 2);
+            const startY = drawY - (totalHeight / 2) + (lineSpacing / 2); // Start drawing from the correct offset
 
             textObj.lines.forEach((line, index) => {
                 const y = startY + (index * lineSpacing);
@@ -1308,9 +1483,10 @@
                 if (textObj.colors.length === 1) {
                     fillStyle = textObj.colors[0].color;
                 } else {
+                    // Gradient needs to be created in the current transformed space
                     const gradient = ctx.createLinearGradient(
-                        textObj.x - textWidth/2, y, 
-                        textObj.x + textWidth/2, y
+                        drawX - textWidth/2, y, 
+                        drawX + textWidth/2, y
                     );
                     textObj.colors.forEach(c => {
                         gradient.addColorStop(c.position, c.color);
@@ -1325,14 +1501,17 @@
                         ctx.lineWidth = stroke.width;
                         ctx.lineJoin = 'round';
                         ctx.miterLimit = 2;
-                        ctx.strokeText(line, textObj.x, y);
+                        ctx.strokeText(line, drawX, y);
                     });
                 }
                 
                 // 繪製填充文字
                 ctx.fillStyle = fillStyle;
-                ctx.fillText(line, textObj.x, y);
+                ctx.fillText(line, drawX, y);
             });
+
+            // Restore the canvas state to the previous (untransformed) state
+            ctx.restore();
         }
 
         // 影片播放時持續渲染
@@ -1508,7 +1687,7 @@
             }
         });
 
-        // 匯出影片
+        // 匯出影片 (LINE 優化版：移除音訊處理邏輯)
         elements.exportBtn.addEventListener('click', async function() {
             if (!state.videoFile) {
                 alert('請先上傳影片!');
@@ -1522,39 +1701,13 @@
             elements.progressFill.textContent = '0%';
 
             try {
+                // 1. 直接擷取 Canvas 畫面 (無音訊)
                 const stream = elements.canvas.captureStream(30);
                 
-                // 嘗試捕獲音訊
-                let hasAudio = false;
-                try {
-                    if (typeof elements.videoPlayer.captureStream === 'function') {
-                        const videoStream = elements.videoPlayer.captureStream();
-                        const audioTracks = videoStream.getAudioTracks();
-                        
-                        if (audioTracks.length > 0) {
-                            audioTracks.forEach(track => {
-                                stream.addTrack(track);
-                            });
-                            hasAudio = true;
-                        }
-                    }
-                } catch (audioError) {
-                    console.warn('無法捕獲音訊:', audioError);
-                }
-
-                // 選擇合適的 MIME 類型
-                let mimeType = 'video/webm;codecs=vp9';
-                if (hasAudio) {
-                    if (MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')) {
-                        mimeType = 'video/webm;codecs=vp9,opus';
-                    } else if (MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')) {
-                        mimeType = 'video/webm;codecs=vp8,opus';
-                    }
-                }
-
+                // 2. 使用與 index.html 相同的編碼參數 (確保 LINE 相容性)
                 const mediaRecorder = new MediaRecorder(stream, {
-                    mimeType: mimeType,
-                    videoBitsPerSecond: 5000000
+                    mimeType: 'video/webm;codecs=vp9', // 強制使用 VP9
+                    videoBitsPerSecond: 2500000        // 降低位元率至 2.5Mbps (同 index.html)
                 });
 
                 const chunks = [];
@@ -1589,7 +1742,7 @@
                     elements.videoPlayer.currentTime = 0;
                     drawFrame();
                     
-                    alert(`✅ 影片已成功下載!\n\n檔案格式: WebM${hasAudio ? ' (含音訊)' : ' (無音訊)'}\n尺寸: ${elements.canvas.width}x${elements.canvas.height}`);
+                    alert(`✅ 影片已成功下載!\n\n格式: WebM (無音訊, LINE優化版)\n尺寸: ${elements.canvas.width}x${elements.canvas.height}`);
                 };
 
                 // 重置影片並開始錄製
@@ -1598,7 +1751,7 @@
                     elements.videoPlayer.onseeked = resolve;
                 });
                 
-                mediaRecorder.start(100);
+                mediaRecorder.start(); // 不需要 timeslice
                 elements.videoPlayer.play();
 
                 // 更新進度條
@@ -1621,7 +1774,7 @@
 
             } catch (error) {
                 console.error('錄製錯誤:', error);
-                alert('❌ 錄製失敗: ' + error.message + '\n\n如果問題持續，請嘗試使用較短的影片或降低畫質。');
+                alert('❌ 錄製失敗: ' + error.message);
                 
                 elements.exportBtn.disabled = false;
                 elements.exportBtn.textContent = '💾 下載影片';
@@ -1636,7 +1789,7 @@
             }
         });
 
-        // --- 支援手機觸控事件 ---
+        // --- (新) 支援手機觸控事件 ---
         // 輔助函數：獲取觸控座標
         function getTouchCoords(e) {
             const rect = elements.canvas.getBoundingClientRect();
@@ -1723,7 +1876,7 @@
                 elements.canvas.style.cursor = 'move';
             }
         });
-        // --- 觸控事件結束 ---
+        // --- (新) 觸控事件結束 ---
 
         // 初始化
         initTabs();
