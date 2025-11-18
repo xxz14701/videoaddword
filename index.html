@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>影片文字編輯器 - 完整功能版 (LINE優化版)</title>
+    <title>影片文字編輯器 - 動畫預覽版</title>
     <style>
         * {
             margin: 0;
@@ -234,6 +234,15 @@
 
         .btn-success:hover:not(:disabled) {
             background: #229954;
+        }
+
+        .btn-warning {
+            background: #f39c12;
+            color: white;
+        }
+        
+        .btn-warning:hover:not(:disabled) {
+            background: #d35400;
         }
 
         .btn:disabled {
@@ -571,7 +580,7 @@
     <div class="container">
         <div class="header">
             <h1>🎬 影片文字編輯器</h1>
-            <p>支援影片/GIF + 純畫面(無音訊) + 多色漸層文字 + 動畫效果 + 自訂字型</p>
+            <p>支援影片/GIF + 純畫面(無音訊) + 多色漸層文字 + 動畫預覽</p>
         </div>
 
         <div class="content">
@@ -659,9 +668,13 @@
                             <label>動畫類型</label>
                             <select id="animType">
                                 <option value="none">無動畫</option>
-                                <option value="fade">漸入/漸出 (Fade In/Out)</option>
+                                <option value="fade">漸入/漸出 (Fade)</option>
                                 <option value="fly-up">上滑入/下滑出 (Fly Up/Down)</option>
-                                <option value="scale">縮放入/縮放出 (Scale In/Out)</option>
+                                <option value="slide-left">⬅️ 左滑入/右滑出 (Slide Left)</option>
+                                <option value="slide-right">➡️ 右滑入/左滑出 (Slide Right)</option>
+                                <option value="scale">縮放入/縮放出 (Scale)</option>
+                                <option value="rotate">🔄 旋轉縮放 (Spin)</option>
+                                <option value="blur">💧 模糊清晰 (Blur)</option>
                             </select>
                         </div>
                         <div class="color-size-group">
@@ -678,6 +691,7 @@
                             <label>動畫效果時長 (秒)</label>
                             <input type="number" id="animDuration" value="0.5" min="0" max="5" step="0.1">
                         </div>
+                        <button class="btn btn-warning" id="previewAnimBtn" style="width: 100%; margin-top: 10px;">▶️ 預覽此動畫</button>
                     </div>
                     <div id="tab-list" class="tab-content">
                         <div id="textList" class="text-list" style="display: none;">
@@ -757,7 +771,8 @@
             startTime: document.getElementById('startTime'),
             endTime: document.getElementById('endTime'),
             animType: document.getElementById('animType'),
-            animDuration: document.getElementById('animDuration')
+            animDuration: document.getElementById('animDuration'),
+            previewAnimBtn: document.getElementById('previewAnimBtn')
             // END NEW ANIMATION ELEMENTS
         };
 
@@ -913,6 +928,14 @@
             elements.animType.addEventListener('change', debouncedUpdatePreview);
             elements.animDuration.addEventListener('input', debouncedUpdatePreview);
             // END NEW ANIMATION LISTENERS
+
+            // 預覽按鈕監聽
+            elements.previewAnimBtn.addEventListener('click', () => {
+                const start = parseFloat(elements.startTime.value) || 0;
+                // 跳轉到開始時間前 0.1 秒，確保能完整看到進場
+                elements.videoPlayer.currentTime = Math.max(0, start - 0.1);
+                elements.videoPlayer.play();
+            });
         }
 
         // 影片上傳處理
@@ -1287,11 +1310,15 @@
                         'fade': '漸入/漸出',
                         'fly-up': '上滑入/下滑出',
                         'scale': '縮放入/縮放出',
+                        'slide-left': '左滑入/右滑出',
+                        'slide-right': '右滑入/左滑出',
+                        'rotate': '旋轉縮放',
+                        'blur': '模糊清晰',
                         'none': '無動畫'
                     };
                     const start = textObj.startTime.toFixed(1);
                     const end = textObj.endTime === 9999 ? '結束' : textObj.endTime.toFixed(1);
-                    animText = ` | 動畫: ${animNameMap[textObj.animType]} (${start}s ~ ${end}s)`;
+                    animText = ` | 動畫: ${animNameMap[textObj.animType] || '自訂'} (${start}s ~ ${end}s)`;
                 }
                 
                 item.innerHTML = `
@@ -1319,6 +1346,11 @@
             });
         }
 
+        // 簡單的緩動函數 (Quad Ease Out) - 讓動畫更自然
+        function easeOut(t) {
+            return t * (2 - t);
+        }
+
         // NEW ANIMATION LOGIC FUNCTION
         function applyAnimation(textObj, currentTime) {
             const { animType, startTime, endTime, animDuration } = textObj;
@@ -1329,46 +1361,75 @@
             let yOffset = 0;
             let opacity = 1;
             let scale = 1;
+            let rotation = 0; // 新增：旋轉角度 (弧度)
+            let blur = 0;     // 新增：模糊 (px)
             
             // 1. 決定是否可見
             if (currentTime < startTime || currentTime > finalEndTime) {
-                return { xOffset: 0, yOffset: 0, opacity: 0, scale: 0, visible: false };
+                return { xOffset: 0, yOffset: 0, opacity: 0, scale: 0, rotation: 0, blur: 0, visible: false };
             }
 
             // 無動畫
             if (animType === 'none') {
-                return { xOffset: 0, yOffset: 0, opacity: 1, scale: 1, visible: true };
+                return { xOffset: 0, yOffset: 0, opacity: 1, scale: 1, rotation: 0, blur: 0, visible: true };
             }
 
-            // 2. 處理入場動畫
+            // 計算進場與出場的階段
             const fadeInTime = Math.min(startTime + animDuration, finalEndTime);
-            if (currentTime < fadeInTime) {
-                let progress = (currentTime - startTime) / animDuration; // 0 to 1
-                progress = Math.min(1, Math.max(0, progress));
-
-                opacity = progress;
-                
-                if (animType === 'fly-up') {
-                    // 100px 距離飛入 (0.5s)
-                    yOffset = 100 * (1 - progress);
-                } else if (animType === 'scale') {
-                    scale = progress;
-                }
-            }
-            
-            // 3. 處理出場動畫
             const fadeOutTime = Math.max(startTime, finalEndTime - animDuration);
-            if (currentTime > fadeOutTime) {
-                let progress = 1 - ((currentTime - fadeOutTime) / animDuration); // 1 to 0
-                progress = Math.min(1, Math.max(0, progress));
+            
+            // ----------------------
+            // 2. 處理進場動畫 (In)
+            // ----------------------
+            if (currentTime < fadeInTime) {
+                let rawProgress = (currentTime - startTime) / animDuration; // 0 to 1 linear
+                rawProgress = Math.min(1, Math.max(0, rawProgress));
+                
+                // 使用 Ease Out 讓進場更滑順
+                const progress = easeOut(rawProgress);
 
                 opacity = progress;
                 
                 if (animType === 'fly-up') {
-                    // 100px 距離飛出 (0.5s)
-                    yOffset = -100 * (1 - progress);
+                    yOffset = 100 * (1 - progress);
+                } else if (animType === 'slide-left') {
+                    xOffset = -300 * (1 - progress); // 從左側 300px 處滑入
+                } else if (animType === 'slide-right') {
+                    xOffset = 300 * (1 - progress); // 從右側 300px 處滑入
                 } else if (animType === 'scale') {
+                    scale = progress; // 0 -> 1
+                } else if (animType === 'rotate') {
                     scale = progress;
+                    rotation = -Math.PI * (1 - progress); // -180度旋轉到0度
+                } else if (animType === 'blur') {
+                    blur = 20 * (1 - progress); // 20px 模糊 -> 0px
+                }
+            } 
+            // ----------------------
+            // 3. 處理出場動畫 (Out)
+            // ----------------------
+            else if (currentTime > fadeOutTime) {
+                let rawProgress = 1 - ((currentTime - fadeOutTime) / animDuration); // 1 to 0 linear
+                rawProgress = Math.min(1, Math.max(0, rawProgress));
+                
+                // 出場也使用 Ease Out (反向)
+                const progress = easeOut(rawProgress);
+
+                opacity = progress;
+                
+                if (animType === 'fly-up') {
+                    yOffset = -100 * (1 - progress);
+                } else if (animType === 'slide-left') {
+                    xOffset = 300 * (1 - progress); // 往右側滑出
+                } else if (animType === 'slide-right') {
+                    xOffset = -300 * (1 - progress); // 往左側滑出
+                } else if (animType === 'scale') {
+                    scale = progress; // 1 -> 0
+                } else if (animType === 'rotate') {
+                    scale = progress;
+                    rotation = Math.PI * (1 - progress); // 0度旋轉到180度
+                } else if (animType === 'blur') {
+                    blur = 20 * (1 - progress); // 0px -> 20px 模糊
                 }
             }
 
@@ -1378,13 +1439,17 @@
                 yOffset = 0;
                 opacity = 1;
                 scale = 1;
+                rotation = 0;
+                blur = 0;
             }
             
             return { 
                 xOffset, 
                 yOffset, 
                 opacity: Math.max(0, Math.min(1, opacity)), // 限制範圍 0~1
-                scale: Math.max(0, Math.min(1, scale)), // 限制範圍 0~1
+                scale: Math.max(0, scale), // 限制最小為0
+                rotation,
+                blur,
                 visible: true 
             };
         }
@@ -1417,7 +1482,10 @@
                 sy = (elements.videoPlayer.videoHeight - sh) / 2;
             }
             
+            // 繪製影片背景
+            ctx.save(); // 儲存狀態以防濾鏡影響
             ctx.drawImage(elements.videoPlayer, sx, sy, sw, sh, 0, 0, elements.canvas.width, elements.canvas.height);
+            ctx.restore();
 
             // 繪製已保存的文字
             state.texts.forEach(textObj => {
@@ -1434,7 +1502,7 @@
             updateResizeHandle();
         }
 
-        // 繪製文字 (MODIFIED TO ACCEPT currentTime)
+        // 繪製文字 (MODIFIED TO ACCEPT currentTime & NEW EFFECTS)
         function drawText(textObj, currentTime) {
             // Apply animation effects
             const animProps = applyAnimation(textObj, currentTime);
@@ -1449,14 +1517,22 @@
             // Apply global alpha (opacity)
             ctx.globalAlpha = animProps.opacity;
 
+            // Apply Blur Filter (if any)
+            if (animProps.blur > 0) {
+                ctx.filter = `blur(${animProps.blur}px)`;
+            }
+
             // Move the canvas origin to the text's coordinate center
             ctx.translate(textObj.x, textObj.y);
             
-            // Apply scale (transforms around the new origin)
+            // Apply translation (movement)
+            ctx.translate(animProps.xOffset, animProps.yOffset);
+            
+            // Apply scale (zoom)
             ctx.scale(animProps.scale, animProps.scale);
             
-            // Apply translation (fly in/out effect)
-            ctx.translate(animProps.xOffset, animProps.yOffset);
+            // Apply rotation (spin) - NEW
+            ctx.rotate(animProps.rotation);
             
             // Now, all subsequent drawing will be centered at (0, 0) of this new transformed coordinate system
 
@@ -1510,7 +1586,7 @@
                 ctx.fillText(line, drawX, y);
             });
 
-            // Restore the canvas state to the previous (untransformed) state
+            // Restore the canvas state (clears filter, transform, opacity)
             ctx.restore();
         }
 
@@ -1707,7 +1783,7 @@
                 // 2. 使用與 index.html 相同的編碼參數 (確保 LINE 相容性)
                 const mediaRecorder = new MediaRecorder(stream, {
                     mimeType: 'video/webm;codecs=vp9', // 強制使用 VP9
-                    videoBitsPerSecond: 2500000        // 降低位元率至 2.5Mbps (同 index.html)
+                    videoBitsPerSecond: 2500000        // 降低位元率至 2.5Mbps
                 });
 
                 const chunks = [];
@@ -1751,7 +1827,7 @@
                     elements.videoPlayer.onseeked = resolve;
                 });
                 
-                mediaRecorder.start(); // 不需要 timeslice
+                mediaRecorder.start();
                 elements.videoPlayer.play();
 
                 // 更新進度條
@@ -1789,8 +1865,7 @@
             }
         });
 
-        // --- (新) 支援手機觸控事件 ---
-        // 輔助函數：獲取觸控座標
+        // --- 支援手機觸控事件 ---
         function getTouchCoords(e) {
             const rect = elements.canvas.getBoundingClientRect();
             const scaleX = elements.canvas.width / rect.width;
@@ -1801,12 +1876,10 @@
             };
         }
 
-        // 1. Canvas - 選擇文字 (touchstart)
         elements.canvas.addEventListener('touchstart', function(e) {
-            e.preventDefault(); // 阻止頁面滾動
+            e.preventDefault();
             const { x, y } = getTouchCoords(e);
 
-            // (邏輯同 mousedown)
             if (state.previewText && state.editingIndex === -1) {
                 if (isPointInText(x, y, state.previewText)) {
                     state.selectedText = state.previewText;
@@ -1823,10 +1896,9 @@
             }
         }, { passive: false });
 
-        // 2. Canvas - 拖動文字 (touchmove)
         elements.canvas.addEventListener('touchmove', function(e) {
             if (state.selectedText && !state.isResizing) {
-                e.preventDefault(); // 阻止頁面滾動
+                e.preventDefault();
                 const { x, y } = getTouchCoords(e);
                 state.selectedText.x = x;
                 state.selectedText.y = y;
@@ -1834,15 +1906,13 @@
             }
         }, { passive: false });
 
-        // 3. Canvas - 結束拖動 (touchend)
         elements.canvas.addEventListener('touchend', function() {
             updateResizeHandle();
         });
 
-        // 4. 調整大小控制點 - 開始 (touchstart)
         elements.resizeHandle.addEventListener('touchstart', function(e) {
             e.stopPropagation();
-            e.preventDefault(); // 阻止頁面滾動
+            e.preventDefault();
             if (!state.selectedText) return;
             
             state.isResizing = true;
@@ -1850,11 +1920,10 @@
             state.resizeStartY = e.touches[0].clientY;
         }, { passive: false });
 
-        // 5. Document - 調整大小中 (touchmove)
         document.addEventListener('touchmove', function(e) {
             if (!state.isResizing || !state.selectedText) return;
             
-            e.preventDefault(); // 阻止頁面滾動
+            e.preventDefault();
             
             if (e.touches && e.touches.length > 0) {
                 const deltaY = e.touches[0].clientY - state.resizeStartY;
@@ -1869,21 +1938,15 @@
             }
         }, { passive: false });
 
-        // 6. Document - 結束調整大小 (touchend)
         document.addEventListener('touchend', function() {
             if (state.isResizing) {
                 state.isResizing = false;
                 elements.canvas.style.cursor = 'move';
             }
         });
-        // --- (新) 觸控事件結束 ---
 
-        // 初始化
         initTabs();
-        
-        // 使 exitEditMode 全域可用（供 HTML 內聯事件調用）
         window.exitEditMode = exitEditMode;
-
     </script>
 </body>
 </html>
